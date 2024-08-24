@@ -311,7 +311,7 @@ def delete_from_risk_register_by_risk_description(risk_description):
     else:
         st.error("You do not have permission to delete risks.")
         
-def register(username, password):
+def register(user, password):
     engine = connect_to_db()
     if engine is None:
         logging.error("Failed to connect to the database.")
@@ -319,21 +319,21 @@ def register(username, password):
     
     try:
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        logging.debug(f"Hashed password for {username}: {hashed_password}")
+        logging.debug(f"Hashed password for {user}: {hashed_password}")
     except Exception as e:
-        logging.error(f"Password hashing failed for {username}: {e}")
+        logging.error(f"Password hashing failed for {user}: {e}")
         st.sidebar.warning(f"Password hashing error: {e}")
         return False
 
     try:
         with engine.connect() as connection:
-            query = text("INSERT INTO credentials (username, password) VALUES (:username, :password)")
-            result = connection.execute(query, {"username": username, "password": hashed_password.decode('utf-8')})
+            query = text("INSERT INTO credentials (user, password) VALUES (:user, :password)")
+            result = connection.execute(query, {"user": user, "password": hashed_password.decode('utf-8')})
             connection.commit()  # Ensure the transaction is committed
-            logging.info(f"Registered new user {username}, Rows affected: {result.rowcount}")
+            logging.info(f"Registered new user {user}, Rows affected: {result.rowcount}")
         return True
     except Exception as err:
-        logging.error(f"Registration error for user {username}: {err}")
+        logging.error(f"Registration error for user {user}: {err}")
         st.sidebar.warning(f"Error: {err}")
         return False
     
@@ -341,8 +341,8 @@ def register(username, password):
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
-if 'username' not in st.session_state:
-    st.session_state.username = ""
+if 'user' not in st.session_state:
+    st.session_state.user = ""
 
 if 'user_role' not in st.session_state:
     st.session_state.user_role = ""
@@ -351,61 +351,61 @@ if 'user_role' not in st.session_state:
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
-if 'username' not in st.session_state:
-    st.session_state.username = ""
+if 'user' not in st.session_state:
+    st.session_state.user = ""
 
 if 'user_role' not in st.session_state:
     st.session_state.user_role = ""
     
-def login(username, password):
-    logging.info(f"Attempting login for username: {username}")
+def login(user, password):
+    logging.info(f"Attempting login for username: {user}")
     engine = connect_to_db()
     if engine:
         try:
             with engine.connect() as connection:
-                query = text("SELECT password, expiry_date, role FROM credentials WHERE username = :username")
-                result = connection.execute(query, {"username": username})
+                query = text("SELECT password, expiry_date, role FROM credentials WHERE user = :user")
+                result = connection.execute(query, {"user": user})
                 row = result.fetchone()
 
                 if row:
                     stored_password, expiry_date, role = row
-                    logging.info(f"Fetched credentials for {username}")
+                    logging.info(f"Fetched credentials for {user}")
 
                     if stored_password:
                         if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
-                            logging.info(f"Password matched for {username}")
+                            logging.info(f"Password matched for {user}")
 
                             if expiry_date:
                                 try:
                                     expiry_date = datetime.strptime(str(expiry_date), '%Y-%m-%d')
                                     if expiry_date < datetime.now():
                                         st.sidebar.error("Your account has expired. Please contact the administrator.")
-                                        logging.info(f"Account expired for {username}")
+                                        logging.info(f"Account expired for {user}")
                                         return False
                                 except ValueError:
                                     st.sidebar.error("Invalid expiry date format. Please contact the administrator.")
-                                    logging.error(f"Invalid expiry date format for {username}: {expiry_date}")
+                                    logging.error(f"Invalid expiry date format for {user}: {expiry_date}")
                                     return False
 
                             if not role:
                                 st.sidebar.error("No role found for the user. Please contact the administrator.")
-                                logging.error(f"No role found for {username}")
+                                logging.error(f"No role found for {user}")
                                 return False
 
                             # If login is successful
                             st.session_state.logged_in = True
-                            st.session_state.username = username
+                            st.session_state.user = user
                             st.session_state.user_role = role
-                            logging.info(f"User {username} logged in successfully with role {role}.")
+                            logging.info(f"User {user} logged in successfully with role {role}.")
                             return True
                         else:
-                            logging.info(f"Invalid credentials for {username}")
+                            logging.info(f"Invalid credentials for {user}")
                             return False
                     else:
-                        logging.error(f"Stored password is missing for {username}")
+                        logging.error(f"Stored password is missing for {user}")
                         return False
                 else:
-                    logging.info(f"Username not found: {username}")
+                    logging.info(f"Username not found: {user}")
                     return False
         except Exception as e:
             logging.error(f"Login error: {e}")
@@ -419,15 +419,15 @@ def logout():
         del st.session_state[key]
     st.session_state.logged_in = False
     
-def change_password(username, current_password, new_password):
-    logging.info(f"Initiating password change for user: {username}")
+def change_password(user, current_password, new_password):
+    logging.info(f"Initiating password change for user: {user}")
     engine = connect_to_db()
     if engine:
         try:
             with engine.begin() as connection:  # Use a transaction
                 # Verify the current password
-                query = text("SELECT password FROM credentials WHERE username = :username")
-                result = connection.execute(query, {"username": username})
+                query = text("SELECT password FROM credentials WHERE user = :user")
+                result = connection.execute(query, {"user": user})
                 row = result.fetchone()
                 
                 if row:
@@ -443,8 +443,8 @@ def change_password(username, current_password, new_password):
                         logging.info(f"New hashed password: {new_hashed_password}")
 
                         # Update with the new password
-                        update_query = text("UPDATE credentials SET password = :new_password WHERE username = :username")
-                        result = connection.execute(update_query, {"new_password": new_hashed_password, "username": username})
+                        update_query = text("UPDATE credentials SET password = :new_password WHERE user = :user")
+                        result = connection.execute(update_query, {"new_password": new_hashed_password, "user": user})
                         if result.rowcount == 1:
                             logging.info("Password updated in the database.")
                             return True
@@ -457,7 +457,7 @@ def change_password(username, current_password, new_password):
                         st.sidebar.error("The current password you entered is incorrect.")
                         return False
                 else:
-                    logging.warning(f"User {username} not found in the database.")
+                    logging.warning(f"User {user} not found in the database.")
                     st.sidebar.error("User not found.")
                     return False
         except Exception as e:
@@ -530,13 +530,13 @@ def main():
         username = st.sidebar.text_input("Username", key="login_username")
         password = st.sidebar.text_input("Password", type="password", key="login_password")
         if st.sidebar.button("Login", key="login_button"):
-            if login(username, password):
-                st.sidebar.success(f"Logged in as: {st.session_state.username}")
+            if login(user, password):
+                st.sidebar.success(f"Logged in as: {st.session_state.user}")
                 st.sidebar.info(f"Role: {st.session_state.user_role}")
             else:
                 st.sidebar.error("Login failed. Please check your credentials.")
     else:
-        st.sidebar.header(f"Welcome, {st.session_state.username}")
+        st.sidebar.header(f"Welcome, {st.session_state.user}")
         st.sidebar.info(f"Role: {st.session_state.user_role}")
         if st.sidebar.button("Logout", key="logout_button"):
             logout()
@@ -549,7 +549,7 @@ def main():
         confirm_new_password = st.sidebar.text_input("Confirm New Password", type="password", key="confirm_new_password")
         if st.sidebar.button("Change Password"):
             if new_password == confirm_new_password:
-                if change_password(st.session_state.username, current_password, new_password):
+                if change_password(st.session_state.user, current_password, new_password):
                     st.sidebar.success("Password changed successfully.")
                 else:
                     st.sidebar.error("Current password is incorrect.")
@@ -558,7 +558,7 @@ def main():
 
     # Additional application logic goes here
     if st.session_state.logged_in:
-        st.write(f"Welcome {st.session_state.username}! You are logged in as {st.session_state.user_role}.")
+        st.write(f"Welcome {st.session_state.user}! You are logged in as {st.session_state.user_role}.")
     else:
         st.write("Please log in to access the application.")
     
