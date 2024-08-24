@@ -27,11 +27,12 @@ logging.basicConfig(filename='application.log', level=logging.INFO)
 def connect_to_db():
     try:
         # Retrieve secrets from environment variables
-        username = os.getenv('username')
+        user = os.getenv('user')
         password = os.getenv('password')
         host = os.getenv('host')
         database = os.getenv('database')
-        ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
+#         ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
+        ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
 
         connection_string = f'mysql+pymysql://{username}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
         engine = create_engine(connection_string)
