@@ -34,7 +34,7 @@ def connect_to_db():
 #         ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
         ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
 
-        connection_string = f'mysql+pymysql://{username}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
+        connection_string = f'mysql+pymysql://{user}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
         engine = create_engine(connection_string)
         with engine.connect() as connection:
             result = connection.execute(text("SELECT 1"))
@@ -530,7 +530,7 @@ def main():
         username = st.sidebar.text_input("Username", key="login_username")
         password = st.sidebar.text_input("Password", type="password", key="login_password")
         if st.sidebar.button("Login", key="login_button"):
-            if login(user, password):
+            if login(username, password):
                 st.sidebar.success(f"Logged in as: {st.session_state.user}")
                 st.sidebar.info(f"Role: {st.session_state.user_role}")
             else:
