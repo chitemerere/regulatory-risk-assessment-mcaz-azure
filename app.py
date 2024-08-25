@@ -31,8 +31,8 @@ def connect_to_db():
         password = os.getenv('password')
         host = os.getenv('host')
         database = os.getenv('database')
-#         ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
-        ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
+        ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
+#         ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
 
         connection_string = f'mysql+pymysql://{user}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
         engine = create_engine(connection_string)
