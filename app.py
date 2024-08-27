@@ -750,7 +750,7 @@ def main():
             # Define colors for risk levels
             color_map = {
                 'High': 'orange',
-                'Critial': 'red',
+                'Critical': 'red',
                 'Low': 'green',
                 'Moderate': 'yellow'
             }
