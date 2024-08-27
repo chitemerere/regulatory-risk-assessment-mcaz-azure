@@ -32,7 +32,6 @@ def connect_to_db():
         host = os.getenv('host')
         database = os.getenv('database')
         ssl_ca = os.getenv('ssl_ca')  # Ensure this is accessible in your environment
-#         ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
 
         connection_string = f'mysql+pymysql://{user}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
         engine = create_engine(connection_string)
@@ -472,20 +471,21 @@ def change_password(user, current_password, new_password):
 # Define the risk appetite based on risk type
 def get_risk_appetite(risk_type):
     risk_appetite_map = {
-        'Strategic Risk': ['Moderate'],
-        'Operational Risk': ['Low', 'Moderate'],
-        'Compliance Risk': ['Low'],
-        'Reputational Risk': ['Low', 'Moderate'],
-        'Financial Risk': ['Low', 'Moderate'],
-        'Regulatory Risk': ['Moderate'],
-        'Enviromental Risk': ['Low'],
-        'Human Resource Risk': ['Moderate'],
-        'Supply Chain Risk': ['Low', 'Moderate'],
-        'Ethical Risk': ['Low'],
-        'Technlogical Risk': ['Moderate'],
-        'Public Health Risk': ['Low']
+        'Strategic Risk': ['Moderate', 'High', 'Critical'],
+        'Operational Risk': ['Low', 'Moderate', 'High'],
+        'Compliance Risk': ['Low', 'Moderate', 'High'],
+        'Reputational Risk': ['Low', 'Moderate', 'High'],
+        'Financial Risk': ['Low', 'Moderate', 'High'],
+        'Regulatory Risk': ['Moderate', 'High', 'Critical'],
+        'Enviromental Risk': ['Low', 'Moderate'],
+        'Human Resource Risk': ['Moderate', 'High'],
+        'Supply Chain Risk': ['Low', 'Moderate', 'High'],
+        'Ethical Risk': ['Low', 'Moderate'],
+        'Technlogical Risk': ['Moderate', 'High', 'Critical'],
+        'Public Health Risk': ['Low', 'Moderate', 'High']
     }
     return risk_appetite_map.get(risk_type, [])
+
 
 # Function to get risk by description
 def fetch_risk_by_description(risk_description):
@@ -729,18 +729,18 @@ def main():
             
             # Define risk types and their corresponding appetite levels
             risk_data = [
-                ("Strategic Risk", "Moderate"),
-                ("Operational Risk", "Low", "Moderate"),
-                ("Compliance Risk", "Low"),
-                ("Reputation Risk", "Low", "Moderate"),
-                ("Financial Risk", "Low", "Moderate"),
-                ("Regulatory Risk", "Moderate"),
-                ("Environmental Risk", "Low"),
-                ("Human Resources Risk", "Moderate"),
-                ("Supply Chain Risk", "Low", "Moderate"),
-                ("Ethical Risk", "Low"),
-                ("Technologica Risk", "Moderate"),
-                ("Public Health Risk", "Low")
+                ("Strategic Risk", "Moderate", "High", "Critical"),
+                ("Operational Risk", "Low", "Moderate", "High"),
+                ("Compliance Risk", "Low", "Moderate", "High"),
+                ("Reputation Risk", "Low", "Moderate", "High"),
+                ("Financial Risk", "Low", "Moderate", "High"),
+                ("Regulatory Risk", "Moderate", "High", "Critical"),
+                ("Environmental Risk", "Low", "Moderate"),
+                ("Human Resources Risk", "Moderate", "High"),
+                ("Supply Chain Risk", "Low", "Moderate", "High"),
+                ("Ethical Risk", "Low", "Moderate"),
+                ("Technologica Risk", "Moderate", "High", "Critical"),
+                ("Public Health Risk", "Low", "Moderate", "High")
             ]
             
                        
@@ -855,6 +855,9 @@ def main():
                 'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Adminstration'
             ]))
             
+             # New field for Opportunity Type
+            opportunity_type = st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], key='opportunity_type')
+            
             if st.button('Enter Risk'):
                 inherent_risk_rating = calculate_risk_rating(inherent_risk_probability, inherent_risk_impact)
                 residual_risk_rating = calculate_risk_rating(residual_risk_probability, residual_risk_impact)
@@ -875,7 +878,8 @@ def main():
                     'residual_risk_impact': residual_risk_impact,
                     'residual_risk_rating': residual_risk_rating,
                     'subsidiary': st.session_state['subsidiary'],  # Include the new field in the risk entry
-                    'Status': status  # Add the selected status to the new_risk dictionary
+                    'Status': status,  # Add the selected status to the new_risk dictionary
+                    'opportunity_type': opportunity_type  # Add the opportunity type to the new_risk dictionary
                 }
                 
                 # Check if a record with the same risk_description already exists
@@ -1021,7 +1025,15 @@ def main():
                     max_appetite_level = max(row['risk_appetite'], key=lambda level: risk_levels.index(level))
 
                     # Check if residual risk rating exceeds the maximum appetite level
-                    return risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
+                    exceeds_appetite = risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
+
+                    # Check if the risk is flagged as an opportunity
+                    accepted_due_to_opportunity = row['opportunity_type'] == 'Yes'
+
+                    # If it exceeds the appetite but is accepted due to an opportunity, consider it acceptable
+                    if exceeds_appetite and accepted_due_to_opportunity:
+                        return False
+                    return exceeds_appetite
 
                 risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
@@ -1228,8 +1240,16 @@ def main():
                         max_appetite_level = max(row['risk_appetite'], key=lambda level: risk_levels.index(level))
 
                         # Check if residual risk rating exceeds the maximum appetite level
-                        return risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
+                        exceeds_appetite = risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
 
+                        # Check if the risk is flagged as an opportunity
+                        accepted_due_to_opportunity = row['opportunity_type'] == 'Yes'
+
+                        # If it exceeds the appetite but is accepted due to an opportunity, consider it acceptable
+                        if exceeds_appetite and accepted_due_to_opportunity:
+                            return False
+                        return exceeds_appetite
+                    
                     risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
                     risk_rating_counts = risk_register['inherent_risk_rating'].value_counts()
@@ -1609,8 +1629,16 @@ def main():
                             max_appetite_level = max(row['risk_appetite'], key=lambda level: risk_levels.index(level))
 
                             # Check if residual risk rating exceeds the maximum appetite level
-                            return risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
+                            exceeds_appetite = risk_levels.index(row['residual_risk_rating']) > risk_levels.index(max_appetite_level)
 
+                            # Check if the risk is flagged as an opportunity
+                            accepted_due_to_opportunity = row['opportunity_type'] == 'Yes'
+
+                            # If it exceeds the appetite but is accepted due to an opportunity, consider it acceptable
+                            if exceeds_appetite and accepted_due_to_opportunity:
+                                return False
+                            return exceeds_appetite
+                        
                         risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
                     risk_register['inherent_risk_probability_num'] = risk_register['inherent_risk_probability'].map(probability_mapping)
@@ -1816,6 +1844,11 @@ def main():
                     st.write(f"**Status:** {selected_risk['Status']}")
                 else:
                     st.write("Status not avaliable.")
+                    
+                if 'opportunity_type' in selected_risk:
+                    st.write(f"**Opportunity Type:** {selected_risk['opportunity_type']}")
+                else:
+                    st.write("Opportunity Type not available.")
                                  
                 if st.button('Delete Risk'):
                     initial_count = len(st.session_state['risk_data'])
@@ -1881,6 +1914,9 @@ def main():
                     
                     # New field for updating Status
                     updated_status = st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status']))
+                    
+                    # New field for updating Opportunity Type
+                    updated_opportunity_type = st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], index=['No', 'Yes'].index(selected_risk_row.get('opportunity_type', 'No')))
 
                     if st.button('Update Risk'):
                         updated_risk = {
@@ -1899,7 +1935,8 @@ def main():
                             'residual_risk_impact': updated_residual_risk_impact,
                             'residual_risk_rating': calculate_risk_rating(updated_residual_risk_probability, updated_residual_risk_impact),
                             'Subsidiary': updated_subsidiary,  # Include the updated subsidiary in the risk update
-                            'Status': updated_status  # Include the updated status
+                            'Status': updated_status,  # Include the updated status
+                            'opportunity_type': updated_opportunity_type  # Include the updated opportunity type
                         }
 
                         old_data = st.session_state['risk_data'].copy()
