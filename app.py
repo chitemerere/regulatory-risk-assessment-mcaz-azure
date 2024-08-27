@@ -1062,6 +1062,37 @@ def main():
             else:
                 st.warning("The data is missing required columns for filtering.")
                 
+            st.subheader('Opportunities Data')
+
+            # Display the filtered data or a message if it's empty
+            if filtered_data.empty:
+                st.info("No data available for the selected date range and subsidiary.")
+            else:
+                # Filter the data to show only opportunities
+                opportunity_data = filtered_data[filtered_data['opportunity_type'] == 'Yes']
+
+                # Check if there are any opportunities after filtering
+                if opportunity_data.empty:
+                    st.info("No opportunities available.")
+                else:
+                    # Apply the style to the filtered data
+                    styled_risk_data = opportunity_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating'])
+
+                    # Display the styled dataframe in Streamlit
+                    st.dataframe(styled_risk_data)
+
+                    # Prepare data for download (unstyled data)
+                    csv = opportunity_data.to_csv(index=False)
+                    current_datetime = datetime.now().strftime('%Y%m%d%H%M%S')
+
+                    # Provide a download button for the CSV file
+                    st.download_button(
+                        label="Download Opportunities Data",
+                        data=csv,
+                        file_name=f"opportunity_data_{current_datetime}.csv",
+                        mime="text/csv",
+                    )
+                
         elif tab == 'Risks Overview':
             st.markdown("""
             <style>
