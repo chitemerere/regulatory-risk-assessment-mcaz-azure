@@ -1840,6 +1840,27 @@ def main():
 
             if filtered_data.empty:
                 st.warning("No data available after filtering.")
+                
+            # Pie chart for 'opportunity_type' Distribution using the filtered data
+            st.subheader("Opportunity Type Distribution")
+
+            # Group the filtered data by 'Time Open' and count the occurrences
+            opportunity_type_distribution = filtered_data['opportunity_type'].value_counts().reset_index()
+            opportunity_type_distribution.columns = ['opportunity_type', 'count']
+
+            if opportunity_type_distribution.empty:
+                st.warning("No data available to display.")
+            else:
+                # Create labels that include both the 'Time Open' value and the count
+                labels_opportunity_type = [f"{row['opportunity_type']} ({row['count']})" for _, row in opportunity_type_distribution.iterrows()]
+
+                fig, ax = plt.subplots()
+                ax.pie(opportunity_type_distribution['count'], labels=labels_opportunity_type, autopct=make_autopct(opportunity_type_distribution['count']), startangle=90)
+                ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+                st.pyplot(fig)
+
+            if filtered_data.empty:
+                st.warning("No data available after filtering.")
       
         elif tab == 'Delete Risk':
             st.subheader('Delete Risk from Risk Data')
