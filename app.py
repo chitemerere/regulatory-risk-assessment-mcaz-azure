@@ -153,7 +153,8 @@ def fetch_all_from_risk_data(engine):
         return pd.DataFrame()
 
 def delete_from_risk_data_by_risk_description(risk_description):
-    if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
+    if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
+#     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
         engine = connect_to_db()
         if engine:
             with engine.connect() as connection:
@@ -176,7 +177,8 @@ def delete_from_risk_data_by_risk_description(risk_description):
         st.error("You do not have permission to delete risks.")
 
 def update_risk_data_by_risk_description(risk_description, data):
-    if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
+    if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
+#     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
         engine = connect_to_db()
         if engine:
             with engine.connect() as connection:
@@ -486,7 +488,6 @@ def get_risk_appetite(risk_type):
     }
     return risk_appetite_map.get(risk_type, [])
 
-
 # Function to get risk by description
 def fetch_risk_by_description(risk_description):
     # Assuming you're using SQLAlchemy
@@ -520,6 +521,108 @@ def fetch_residual_risk_rating_distribution():
     with engine.connect() as connection:
         df = pd.read_sql(query, connection)
     return df
+
+# Function to filter and generate trend analysis
+def generate_trend_analysis(risk_data):
+    # Convert date_last_updated to datetime
+    risk_data['date_last_updated'] = pd.to_datetime(risk_data['date_last_updated'])
+    
+    # Filters
+    risk_types = st.multiselect('Select Risk Type(s)', risk_data['risk_type'].unique(), default=risk_data['risk_type'].unique())
+    risk_owners = st.multiselect('Select Risk Owner(s)', risk_data['risk_owners'].unique(), default=risk_data['risk_owners'].unique())
+    
+    # Date filters with "From" and "To"
+    date_from = st.date_input("From Date", value=risk_data['date_last_updated'].min())
+    date_to = st.date_input("To Date", value=risk_data['date_last_updated'].max())
+    
+    # Ensure that 'date_from' is before 'date_to'
+    if date_from > date_to:
+        st.error("'From Date' must be earlier than 'To Date'. Please correct the dates.")
+        return
+
+    # Filter data
+    filtered_data = risk_data[
+        (risk_data['risk_type'].isin(risk_types)) &
+        (risk_data['risk_owners'].isin(risk_owners)) &
+        (risk_data['date_last_updated'] >= pd.to_datetime(date_from)) &
+        (risk_data['date_last_updated'] <= pd.to_datetime(date_to))
+    ]
+    
+    if filtered_data.empty:
+        st.write("No data available for the selected filters.")
+    else:
+        # Trend analysis by risk type
+        trend_data = filtered_data.groupby(['date_last_updated', 'risk_type']).size().unstack(fill_value=0)
+        
+        st.write("Trend Analysis by Risk Type")
+        st.line_chart(trend_data)
+        
+        # Show filtered data
+        st.write("Filtered Data", filtered_data)
+        
+        # Allow download of the filtered data
+        csv = filtered_data.to_csv(index=False)
+        st.download_button(label="Download Filtered Data as CSV", data=csv, file_name="filtered_risk_data.csv", mime="text/csv")
+        
+# Function to calculate KPIs Critical
+def calculate_kpis(df):
+    # 1. Risk Reduction KPI
+    initial_critical_risks = df[df['inherent_risk_rating'] == 'Critical'].shape[0]
+    reduced_critical_risks = df[(df['inherent_risk_rating'] == 'Critical') & (df['residual_risk_rating'] != 'Critical')].shape[0]
+    risk_reduction_kpi = (reduced_critical_risks / initial_critical_risks) * 100 if initial_critical_risks > 0 else 0
+
+    # 2. Action Completion KPI (Assuming 'Status' indicates completion)
+    total_actions = df.shape[0]
+    completed_actions = df[df['Status'] == 'Closed'].shape[0]
+    action_completion_kpi = (completed_actions / total_actions) * 100 if total_actions > 0 else 0
+
+    # 3. Cost Performance KPI (If cost data were available, this would compare actual vs. budgeted costs)
+
+    # 4. Residual Risk KPI (Percentage of risks that are still rated 'Critical')
+    residual_critical_risks = df[df['residual_risk_rating'] == 'Critical'].shape[0]
+    residual_risk_kpi = (residual_critical_risks / total_actions) * 100 if total_actions > 0 else 0
+
+    return {
+        "Risk Reduction KPI (%)": risk_reduction_kpi,
+        "Action Completion KPI (%)": action_completion_kpi,
+        "Residual Risk KPI (%)": residual_risk_kpi
+    }
+
+# Function to calculate KPIs High
+def calculate_kpis_high(df):
+    # 1. Risk Reduction KPI
+    initial_high_risks = df[df['inherent_risk_rating'] == 'High'].shape[0]
+    reduced_high_risks = df[(df['inherent_risk_rating'] == 'High') & (df['residual_risk_rating'] != 'High')].shape[0]
+    risk_reduction_kpi = (reduced_high_risks / initial_high_risks) * 100 if initial_high_risks > 0 else 0
+
+    # 2. Action Completion KPI (Assuming 'Status' indicates completion)
+    total_actions = df.shape[0]
+    completed_actions = df[df['Status'] == 'Closed'].shape[0]
+    action_completion_kpi = (completed_actions / total_actions) * 100 if total_actions > 0 else 0
+
+    # 3. Cost Performance KPI (If cost data were available, this would compare actual vs. budgeted costs)
+
+    # 4. Residual Risk KPI (Percentage of risks that are still rated 'Critical')
+    residual_high_risks = df[df['residual_risk_rating'] == 'High'].shape[0]
+    residual_risk_kpi = (residual_high_risks / total_actions) * 100 if total_actions > 0 else 0
+
+    return {
+        "Risk Reduction KPI (%)": risk_reduction_kpi,
+        "Action Completion KPI (%)": action_completion_kpi,
+        "Residual Risk KPI (%)": residual_risk_kpi
+    }
+
+# Function to generate progress reports
+def generate_progress_reports(df):
+    # Generate report summary
+    report_summary = df.groupby(['Status']).size().reset_index(name='Count')
+    return report_summary
+
+# Function to create a risk dashboard
+def create_risk_dashboard(df):
+    # Create a dashboard with a summary of key metrics
+    risk_type_summary = df.groupby(['risk_type', 'residual_risk_rating']).size().reset_index(name='Count')
+    return risk_type_summary        
 
 def main():
     st.image("logo.png", width=400)
@@ -660,7 +763,7 @@ def main():
         tab = st.sidebar.selectbox(
             'Choose a function',
             ('Risk Matrix', 'Main Application', 'Risks Overview', 'Risks Owners & Control Owners', 
-             'Adjusted Risk Matrices', 'Performance Metrics','Delete Risk', 'Update Risk')
+             'Adjusted Risk Matrices', 'Performance Metrics', 'Reports','Delete Risk', 'Update Risk')
         )
 
         if 'risk_data' not in st.session_state:
@@ -832,7 +935,7 @@ def main():
                 'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
                 'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
             ]))
-
+            
             st.session_state['updated_by'] = st.text_input('Updated By')
             st.session_state['date_last_updated'] = st.date_input('Date Last Updated')
             risk_description = st.text_input('Risk Description', key='risk_description')
@@ -841,23 +944,30 @@ def main():
             inherent_risk_probability = st.selectbox('Inherent Risk Probability', list(risk_levels.keys()), key='inherent_risk_probability')
             inherent_risk_impact = st.selectbox('Inherent Risk Impact', list(risk_levels.keys()), key='inherent_risk_impact')
             controls = st.text_input('Control(s)', key='controls')
+
+            # New field for Adequacy
+            adequacy = st.selectbox('Adequacy', ['Weak', 'Acceptable', 'Strong'], key='adequacy')
+
             control_owners = st.text_input('Control Owner(s)', key='control_owners')
             residual_risk_probability = st.selectbox('Residual Risk Probability', list(risk_levels.keys()), key='residual_risk_probability')
             residual_risk_impact = st.selectbox('Residual Risk Impact', list(risk_levels.keys()), key='residual_risk_impact')
-            
+
+            # New field for Direction
+            direction = st.selectbox('Direction', ['Increasing', 'Decreasing', 'Stable'], key='direction')
+
             # New field for Status
             status = st.selectbox('Status', ['Open', 'Closed'], key='status')
 
             # New field for Subsidiary
             st.session_state['subsidiary'] = st.selectbox('Subsidiary', sorted([
-                'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clincal Trials',
+                'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                 'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
-                'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Adminstration'
+                'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
             ]))
-            
-             # New field for Opportunity Type
+
+            # New field for Opportunity Type
             opportunity_type = st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], key='opportunity_type')
-            
+
             if st.button('Enter Risk'):
                 inherent_risk_rating = calculate_risk_rating(inherent_risk_probability, inherent_risk_impact)
                 residual_risk_rating = calculate_risk_rating(residual_risk_probability, residual_risk_impact)
@@ -873,15 +983,17 @@ def main():
                     'inherent_risk_impact': inherent_risk_impact,
                     'inherent_risk_rating': inherent_risk_rating,
                     'controls': controls,
+                    'adequacy': adequacy,  # Include the new adequacy field
                     'control_owners': control_owners,
                     'residual_risk_probability': residual_risk_probability,
                     'residual_risk_impact': residual_risk_impact,
                     'residual_risk_rating': residual_risk_rating,
-                    'subsidiary': st.session_state['subsidiary'],  # Include the new field in the risk entry
-                    'Status': status,  # Add the selected status to the new_risk dictionary
-                    'opportunity_type': opportunity_type  # Add the opportunity type to the new_risk dictionary
+                    'direction': direction,  # Include the new direction field
+                    'subsidiary': st.session_state['subsidiary'],  # Include the new subsidiary field
+                    'Status': status,  # Include the status field
+                    'opportunity_type': opportunity_type  # Include the opportunity type field
                 }
-                
+          
                 # Check if a record with the same risk_description already exists
                 existing_risk = fetch_risk_by_description(risk_description)
 
@@ -916,10 +1028,32 @@ def main():
                 'High': 'background-color: orange',
                 'Critical': 'background-color: red'
             }
+            
+            # Define colors for each adequacy
+            colors_adequacy = {
+                'Weak': 'background-color: orange',
+                'Acceptable': 'background-color: yellow',
+                'Strong': 'background-color: green'
+            }
+            
+            # Define colors for each direction
+            colors_direction = {
+                'Increasing': 'background-color: orange',
+                'Decreasing': 'background-color: yellow',
+                'Stable': 'background-color: green'
+            }
 
             # Function to apply styles
             def highlight_risk(rating):
                 return colors.get(rating, '')
+            
+            # Function to highlight adequacy based on value
+            def highlight_adequacy(val):
+                return colors_adequacy.get(val, '')
+
+            # Function to highlight direction based on value
+            def highlight_direction(val):
+                return colors_direction.get(val, '')
 
             # Check if the DataFrame is not empty and contains the 'date_last_updated' column
             if not risk_data.empty and 'date_last_updated' in risk_data.columns:
@@ -964,7 +1098,7 @@ def main():
                 'Legal Unit',
                 'Human Resources',
                 'Information and Communication Technology',
-                'Finance and Adminstration'                            
+                'Finance and Administration'                            
             ]
             subsidiaries.sort()
             
@@ -989,8 +1123,11 @@ def main():
             if filtered_data.empty:
                 st.info("No data available for the selected date range and subsidiary.")
             else:
-                # Apply the style to both columns
-                styled_risk_data = filtered_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating'])
+                # Apply the style to all relevant columns
+                styled_risk_data = filtered_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating']) \
+                    .applymap(highlight_adequacy, subset=['Adequacy']) \
+                    .applymap(highlight_direction, subset=['Direction'])
+#                 styled_risk_data = filtered_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating'])
 
                 # Display the styled dataframe in Streamlit
                 st.dataframe(styled_risk_data)
@@ -1010,7 +1147,9 @@ def main():
             st.subheader('Risk Register')
             
             # Check for required columns before applying further filtering
-            if 'inherent_risk_rating' in filtered_data.columns and 'residual_risk_rating' in filtered_data.columns and 'risk_type' in filtered_data.columns:
+            required_columns = ['inherent_risk_rating', 'residual_risk_rating', 'risk_type', 'Adequacy', 'Direction', 'opportunity_type']
+
+            if all(column in filtered_data.columns for column in required_columns):
                 filtered_data['risk_appetite'] = filtered_data['risk_type'].apply(get_risk_appetite)
 
                 def residual_exceeds_appetite(row):
@@ -1030,18 +1169,21 @@ def main():
                     # Check if the risk is flagged as an opportunity
                     accepted_due_to_opportunity = row['opportunity_type'] == 'Yes'
 
-                    # If it exceeds the appetite but is accepted due to an opportunity, consider it acceptable
-                    if exceeds_appetite and accepted_due_to_opportunity:
-                        return False
-                    return exceeds_appetite
+                    if exceeds_appetite and not accepted_due_to_opportunity:
+                        return True
 
+                    return False
+
+                # Filter the DataFrame based on the residual_exceeds_appetite function
                 risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
                 if not risk_register.empty:
                     # Apply the style to both columns
-                    styled_risk_data = risk_register.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating'])
+                    styled_risk_data = risk_register.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating']) \
+                        .applymap(highlight_adequacy, subset=['Adequacy']) \
+                        .applymap(highlight_direction, subset=['Direction'])
 
-                    # Display the styled dataframe in Streamlit
+                    # Display the styled DataFrame in Streamlit
                     st.dataframe(styled_risk_data)
 
                     # Convert the risk register to CSV format
@@ -1061,7 +1203,7 @@ def main():
                     st.write("No risk register data available to display or download.")
             else:
                 st.warning("The data is missing required columns for filtering.")
-                
+        
             st.subheader('Opportunities Data')
 
             # Display the filtered data or a message if it's empty
@@ -1075,8 +1217,10 @@ def main():
                 if opportunity_data.empty:
                     st.info("No opportunities available.")
                 else:
-                    # Apply the style to the filtered data
-                    styled_risk_data = opportunity_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating'])
+                    # Apply the style to all relevant columns
+                    styled_risk_data = opportunity_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating']) \
+                        .applymap(highlight_adequacy, subset=['Adequacy']) \
+                        .applymap(highlight_direction, subset=['Direction'])
 
                     # Display the styled dataframe in Streamlit
                     st.dataframe(styled_risk_data)
@@ -1092,7 +1236,7 @@ def main():
                         file_name=f"opportunity_data_{current_datetime}.csv",
                         mime="text/csv",
                     )
-                
+            
         elif tab == 'Risks Overview':
             st.markdown("""
             <style>
@@ -1163,7 +1307,7 @@ def main():
                 'Legal Unit',
                 'Human Resources',
                 'Information and Communication Technology',
-                'Finance and Adminstration'                            
+                'Finance and Administration'                            
             ]
             subsidiaries.sort()
 
@@ -1251,6 +1395,23 @@ def main():
                     st.pyplot(fig)
                 else:
                     st.warning("The column 'risk_type' is missing from the data.")
+                    
+                # Display Risk Dashboard
+                st.subheader("Risk Count by Risk Type")
+                risk_dashboard = create_risk_dashboard(risk_data)
+                st.dataframe(risk_dashboard)
+                
+                # Prepare data for download (unstyled data)
+                csv = risk_dashboard.to_csv(index=False)
+                current_datetime = datetime.now().strftime('%Y%m%d%H%M%S')
+
+                # Provide a download button for the CSV file
+                st.download_button(
+                    label="Download Rish Dashboard",
+                    data=csv,
+                    file_name=f"risk_dashboard_{current_datetime}.csv",
+                    mime="text/csv",
+                )
 
                 # After Risk Appetite Analysis
                 st.subheader('After Risk Appetite')
@@ -1258,7 +1419,7 @@ def main():
                 # Check for required columns before applying further filtering
                 if 'inherent_risk_rating' in filtered_data.columns and 'residual_risk_rating' in filtered_data.columns and 'risk_type' in filtered_data.columns:
                     filtered_data['risk_appetite'] = filtered_data['risk_type'].apply(get_risk_appetite)
-
+                    
                     def residual_exceeds_appetite(row):
                         # Define a mapping of risk levels for comparison purposes
                         risk_levels = ['Low', 'Moderate', 'High', 'Critical']
@@ -1280,7 +1441,7 @@ def main():
                         if exceeds_appetite and accepted_due_to_opportunity:
                             return False
                         return exceeds_appetite
-                    
+
                     risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
                     risk_rating_counts = risk_register['inherent_risk_rating'].value_counts()
@@ -1339,7 +1500,8 @@ def main():
                         st.warning("The column 'risk_type' is missing from the risk register data.")
                 else:
                     st.warning("The necessary columns for 'inherent_risk_rating' or 'residual_risk_rating' are missing from the data.")
-
+                    
+                
         elif tab == 'Risks Owners & Control Owners':
             st.markdown("""
             <style>
@@ -1553,7 +1715,7 @@ def main():
                 'Legal Unit',
                 'Human Resources',
                 'Information and Communication Technology',
-                'Finance and Adminstration'                            
+                'Finance and Administration'                            
             ]
             subsidiaries.sort()
 
@@ -1669,7 +1831,7 @@ def main():
                             if exceeds_appetite and accepted_due_to_opportunity:
                                 return False
                             return exceeds_appetite
-                        
+
                         risk_register = filtered_data[filtered_data.apply(residual_exceeds_appetite, axis=1)]
 
                     risk_register['inherent_risk_probability_num'] = risk_register['inherent_risk_probability'].map(probability_mapping)
@@ -1842,25 +2004,150 @@ def main():
                 st.warning("No data available after filtering.")
                 
             # Pie chart for 'opportunity_type' Distribution using the filtered data
-            st.subheader("Opportunity Type Distribution")
-
-            # Group the filtered data by 'Time Open' and count the occurrences
+            st.subheader("Risk Category Distribution")
+            
+            # Group the filtered data by 'opportunity_type' and count the occurrences
             opportunity_type_distribution = filtered_data['opportunity_type'].value_counts().reset_index()
             opportunity_type_distribution.columns = ['opportunity_type', 'count']
 
             if opportunity_type_distribution.empty:
                 st.warning("No data available to display.")
             else:
-                # Create labels that include both the 'Time Open' value and the count
-                labels_opportunity_type = [f"{row['opportunity_type']} ({row['count']})" for _, row in opportunity_type_distribution.iterrows()]
+                # Map 'Yes' to 'Opportunity' and 'No' to 'Risk'
+                opportunity_type_distribution['description'] = opportunity_type_distribution['opportunity_type'].map({
+                    'Yes': 'Opportunities',
+                    'No': 'Risks'
+                })
+
+                # Create labels that include both the description and the count
+                labels_opportunity_type = [f"{row['description']} ({row['count']})" for _, row in opportunity_type_distribution.iterrows()]
 
                 fig, ax = plt.subplots()
-                ax.pie(opportunity_type_distribution['count'], labels=labels_opportunity_type, autopct=make_autopct(opportunity_type_distribution['count']), startangle=90)
+                ax.pie(opportunity_type_distribution['count'], labels=labels_opportunity_type, autopct='%1.1f%%', startangle=90)
                 ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
                 st.pyplot(fig)
 
             if filtered_data.empty:
                 st.warning("No data available after filtering.")
+
+              
+            # Display KPIs
+            st.subheader("Risk Management KPIs")
+            st.subheader('Critical Risks')
+            # 1. Risk Reduction KPI
+            risk_reduction_kpi_description = """
+            **Risk Reduction KPI (%):** 
+            This KPI measures the effectiveness of risk treatment plans in reducing critical risks. 
+            It calculates the percentage of critical risks that have been downgraded to a less severe rating after treatment.
+            """
+            st.markdown(risk_reduction_kpi_description)
+            st.metric("Risk Reduction KPI (%)", f"{calculate_kpis(risk_data)['Risk Reduction KPI (%)']:.2f}%")
+
+            # 2. Action Completion KPI
+            action_completion_kpi_description = """
+            **Action Completion KPI (%):** 
+            This KPI tracks the progress of risk treatment plans by measuring the percentage of planned risk treatment actions 
+            that have been completed on time. It is an indicator of how well the risk treatment process is being managed.
+            """
+            st.markdown(action_completion_kpi_description)
+            st.metric("Action Completion KPI (%)", f"{calculate_kpis(risk_data)['Action Completion KPI (%)']:.2f}%")
+
+            # 3. Residual Risk KPI
+            residual_risk_kpi_description = """
+            **Residual Risk KPI (%):** 
+            This KPI measures the proportion of risks that remain critical after treatment actions have been implemented. 
+            A high percentage indicates that more work is needed to mitigate these risks effectively.
+            """
+            st.markdown(residual_risk_kpi_description)
+            st.metric("Residual Risk KPI (%)", f"{calculate_kpis(risk_data)['Residual Risk KPI (%)']:.2f}%")
+            
+            st.subheader('High Risks')
+            # 1. Risk Reduction KPI
+            risk_reduction_kpi_description = """
+            **Risk Reduction KPI (%):** 
+            This KPI measures the effectiveness of risk treatment plans in reducing high risks. 
+            It calculates the percentage of high risks that have been downgraded to a less severe rating after treatment.
+            """
+            st.markdown(risk_reduction_kpi_description)
+            st.metric("Risk Reduction KPI (%)", f"{calculate_kpis_high(risk_data)['Risk Reduction KPI (%)']:.2f}%")
+
+            # 2. Action Completion KPI
+            action_completion_kpi_description = """
+            **Action Completion KPI (%):** 
+            This KPI tracks the progress of risk treatment plans by measuring the percentage of planned risk treatment actions 
+            that have been completed on time. It is an indicator of how well the risk treatment process is being managed.
+            """
+            st.markdown(action_completion_kpi_description)
+            st.metric("Action Completion KPI (%)", f"{calculate_kpis_high(risk_data)['Action Completion KPI (%)']:.2f}%")
+
+            # 3. Residual Risk KPI
+            residual_risk_kpi_description = """
+            **Residual Risk KPI (%):** 
+            This KPI measures the proportion of risks that remain high after treatment actions have been implemented. 
+            A high percentage indicates that more work is needed to mitigate these risks effectively.
+            """
+            st.markdown(residual_risk_kpi_description)
+            st.metric("Residual Risk KPI (%)", f"{calculate_kpis_high(risk_data)['Residual Risk KPI (%)']:.2f}%")
+            
+            # Load or fetch data (replace with your data loading logic)
+            engine = connect_to_db()
+
+            # Load or fetch updated data
+            risk_data_updated = st.session_state.get('risk_data_updated', fetch_all_from_risk_data(engine))
+
+            # Ensure that the data is loaded before proceeding
+            if risk_data_updated is None or risk_data_updated.empty:
+                st.error("No data available. Please check the data source.")
+            else:
+                # Function to calculate Adequacy KPI
+                def calculate_adequacy_kpi(df):
+                    total_risks = df.shape[0]
+                    adequate_treatments = df[df['Adequacy'] == 'Acceptable'].shape[0]
+                    adequacy_kpi = (adequate_treatments / total_risks) * 100 if total_risks > 0 else 0
+                    return adequacy_kpi
+
+                # Function to calculate Direction KPI
+                def calculate_direction_kpi(df):
+                    total_risks = df.shape[0]
+                    improving_risks = df[df['Direction'] == 'Stable'].shape[0]
+                    direction_kpi = (improving_risks / total_risks) * 100 if total_risks > 0 else 0
+                    return direction_kpi
+
+                # Calculate and display Adequacy KPI
+                st.subheader('Adequacy and Direction Measures')
+
+                adequacy_kpi_description = """
+                **Adequacy KPI (%):** 
+                This KPI measures the percentage of risks that have been addressed with treatment plans deemed 'Acceptable'.
+                """
+                st.markdown(adequacy_kpi_description)
+                adequacy_kpi = calculate_adequacy_kpi(risk_data_updated)
+                st.metric("Adequacy KPI (%)", f"{adequacy_kpi:.2f}%")
+
+                # Calculate and display Direction KPI
+                direction_kpi_description = """
+                **Direction KPI (%):** 
+                This KPI measures the percentage of risks that are, based on the current information residual risk is expected to be stable in the next twelve months , classified as 'Stable' in the 'Direction' field.
+                """
+                st.markdown(direction_kpi_description)
+                direction_kpi = calculate_direction_kpi(risk_data_updated)
+                st.metric("Direction KPI (%)", f"{direction_kpi:.2f}%")
+                            
+        elif tab == 'Reports':
+            st.subheader('Reports')
+            
+            engine = connect_to_db()
+
+            # Load or fetch data
+            risk_data = st.session_state.get('risk_data', fetch_all_from_risk_data(engine))
+            
+            # Display Risk Treatment Progress Report
+            st.subheader("Risk Treatment Progress Report")
+            progress_report = generate_progress_reports(risk_data)
+            st.dataframe(progress_report)
+
+            
+            generate_trend_analysis(risk_data)
       
         elif tab == 'Delete Risk':
             st.subheader('Delete Risk from Risk Data')
@@ -1901,6 +2188,16 @@ def main():
                     st.write(f"**Opportunity Type:** {selected_risk['opportunity_type']}")
                 else:
                     st.write("Opportunity Type not available.")
+                    
+                if 'Adequacy' in selected_risk:
+                    st.write(f"**Adequacy of Risk Management Systems:** {selected_risk['Adequacy']}")
+                else:
+                    st.write("Adequacy of Risk Management Systems not available.")
+                    
+                if 'Direction' in selected_risk:
+                    st.write(f"**Direction of Residual Risk Rating:** {selected_risk['Direction']}")
+                else:
+                    st.write("Direction of Residual Risk Rating is not available.")
                                  
                 if st.button('Delete Risk'):
                     initial_count = len(st.session_state['risk_data'])
@@ -1939,7 +2236,7 @@ def main():
                                 'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
                                 'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
                             ]).index(selected_risk_row['risk_type']))
-
+                    
                     # Display fields for updating the risk
                     updated_risk_description = st.text_input('risk_description', value=selected_risk_row['risk_description'])
                     updated_cause_consequences = st.text_input('cause_consequences', value=selected_risk_row['cause_consequences'])
@@ -1947,26 +2244,34 @@ def main():
                     updated_inherent_risk_probability = st.selectbox('inherent_risk_probability', list(risk_levels.keys()), index=list(risk_levels.keys()).index(selected_risk_row['inherent_risk_probability']))
                     updated_inherent_risk_impact = st.selectbox('inherent_risk_impact', list(risk_levels.keys()), index=list(risk_levels.keys()).index(selected_risk_row['inherent_risk_impact']))
                     updated_controls = st.text_input('controls', value=selected_risk_row['controls'])
+
+                    # New field for updating Adequacy
+                    updated_adequacy = st.selectbox('Adequacy', ['Weak', 'Acceptable', 'Strong'], index=['Weak', 'Acceptable', 'Strong'].index(selected_risk_row['Adequacy']))
+
                     updated_control_owners = st.text_input('control_owners', value=selected_risk_row['control_owners'])
                     updated_residual_risk_probability = st.selectbox('residual_risk_probability', list(risk_levels.keys()), index=list(risk_levels.keys()).index(selected_risk_row['residual_risk_probability']))
                     updated_residual_risk_impact = st.selectbox('residual_risk_impact', list(risk_levels.keys()), index=list(risk_levels.keys()).index(selected_risk_row['residual_risk_impact']))
+
+                    # New field for updating Direction
+                    updated_direction = st.selectbox('Direction', ['Increasing', 'Decreasing', 'Stable'], index=['Increasing', 'Decreasing', 'Stable'].index(selected_risk_row['Direction']))
+
                     updated_by = st.text_input('updated_by', value=selected_risk_row['updated_by'])
                     updated_date_last_updated = st.date_input('date_last_updated', value=selected_risk_row['date_last_updated'])
 
                     # New field for updating Subsidiary
                     updated_subsidiary = st.selectbox('Subsidiary', sorted([
-                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clincal Trials',
+                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                         'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
-                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Adminstration'
+                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
                     ]), index=sorted([
-                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clincal Trials',
+                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                         'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
-                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Adminstration'
+                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
                     ]).index(selected_risk_row['Subsidiary']))
-                    
+
                     # New field for updating Status
                     updated_status = st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status']))
-                    
+
                     # New field for updating Opportunity Type
                     updated_opportunity_type = st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], index=['No', 'Yes'].index(selected_risk_row.get('opportunity_type', 'No')))
 
@@ -1982,10 +2287,12 @@ def main():
                             'inherent_risk_impact': updated_inherent_risk_impact,
                             'inherent_risk_rating': calculate_risk_rating(updated_inherent_risk_probability, updated_inherent_risk_impact),
                             'controls': updated_controls,
+                            'adequacy': updated_adequacy,  # Include the updated adequacy in the risk update
                             'control_owners': updated_control_owners,
                             'residual_risk_probability': updated_residual_risk_probability,
                             'residual_risk_impact': updated_residual_risk_impact,
                             'residual_risk_rating': calculate_risk_rating(updated_residual_risk_probability, updated_residual_risk_impact),
+                            'direction': updated_direction,  # Include the updated direction in the risk update
                             'Subsidiary': updated_subsidiary,  # Include the updated subsidiary in the risk update
                             'Status': updated_status,  # Include the updated status
                             'opportunity_type': updated_opportunity_type  # Include the updated opportunity type
