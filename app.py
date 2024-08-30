@@ -634,7 +634,7 @@ def main():
         password = st.sidebar.text_input("Password", type="password", key="login_password")
         if st.sidebar.button("Login", key="login_button"):
             if login(username, password):
-                st.sidebar.success(f"Logged in as: {st.session_state.username}")
+                st.sidebar.success(f"Logged in as: {st.session_state.user}")
                 st.sidebar.info(f"Role: {st.session_state.user_role}")
             else:
                 st.sidebar.error("Login failed. Please check your credentials.")
