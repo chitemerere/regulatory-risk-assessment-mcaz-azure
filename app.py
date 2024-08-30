@@ -675,7 +675,7 @@ def main():
             else:
                 st.sidebar.error("Registration failed. The username might already be taken.")
     elif st.session_state.logged_in:
-        st.sidebar.info("Only super admin users can register new users.")
+        st.sidebar.info("Only supper admin users can register new users.")
 
     if st.session_state.logged_in:
         # Main application content goes here
