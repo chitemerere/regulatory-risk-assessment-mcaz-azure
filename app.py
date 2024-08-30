@@ -652,7 +652,7 @@ def main():
         confirm_new_password = st.sidebar.text_input("Confirm New Password", type="password", key="confirm_new_password")
         if st.sidebar.button("Change Password"):
             if new_password == confirm_new_password:
-                if change_password(st.session_state.username, current_password, new_password):
+                if change_password(st.session_state.user, current_password, new_password):
                     st.sidebar.success("Password changed successfully.")
                 else:
                     st.sidebar.error("Current password is incorrect.")
