@@ -639,7 +639,7 @@ def main():
             else:
                 st.sidebar.error("Login failed. Please check your credentials.")
     else:
-        st.sidebar.header(f"Welcome, {st.session_state.username}")
+        st.sidebar.header(f"Welcome, {st.session_state.user}")
         st.sidebar.info(f"Role: {st.session_state.user_role}")
         if st.sidebar.button("Logout", key="logout_button"):
             logout()
