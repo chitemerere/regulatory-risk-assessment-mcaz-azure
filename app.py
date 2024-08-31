@@ -1115,7 +1115,15 @@ def main():
 
             # Apply risk owners filter if not 'All'
             if selected_risk_owner != 'All':
-                filtered_data = filtered_data[filtered_data['risk_owners'] == selected_risk_owner]   
+                filtered_data = filtered_data[filtered_data['risk_owners'] == selected_risk_owner] 
+                
+            # Add a filter for risk category
+            risk_categories = ['All'] + sorted(risk_data['risk_category'].dropna().unique().tolist())
+            selected_risk_category = st.selectbox('Select Risk Category', risk_categories)
+
+            # Apply risk category filter if not 'All'
+            if selected_risk_category != 'All':
+                filtered_data = filtered_data[filtered_data['risk_category'] == selected_risk_category]
 
             st.subheader('Risk Data')
 
