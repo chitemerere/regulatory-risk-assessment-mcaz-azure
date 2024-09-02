@@ -2362,7 +2362,7 @@ def main():
                         }
 
                         # Call the function to update the risk data
-                        update_risk_data_by_risk_description(risk_description, updated_risk)
+                        update_risk_data_by_risk_description(risk_to_update, updated_risk)
 
                         # Refresh the risk data
                         st.session_state['risk_data'] = fetch_all_from_risk_data(engine)
@@ -2371,7 +2371,7 @@ def main():
                     st.write("No matching risk found to update.")
             else:
                 st.write("No risks to update.")
-           
+                
 if __name__ == '__main__':
     main()
         
