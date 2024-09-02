@@ -151,18 +151,27 @@ def fetch_all_from_risk_data(engine):
     except Exception as e:
         st.error(f"An error occurred while fetching data: {e}")
         return pd.DataFrame()
-
+    
 def delete_from_risk_data_by_risk_description(risk_description):
     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
-#     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
         engine = connect_to_db()
         if engine:
             with engine.connect() as connection:
                 transaction = connection.begin()
                 try:
+                    # Ensure the @current_user_id session variable is set
+                    if 'user_id' in st.session_state:
+                        user_id = st.session_state['user_id']
+                        connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+                    else:
+                        st.error("User ID not found in session state. Cannot proceed with deletion.")
+                        return
+
+                    # Prepare and execute the delete statement
                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
                     result = connection.execute(query, {"risk_description": risk_description})
                     transaction.commit()
+
                     if result.rowcount > 0:
                         st.success(f"Risk '{risk_description}' deleted.")
                         logging.info(f"Deleted risk description: {risk_description}, Rows affected: {result.rowcount}")
@@ -176,32 +185,71 @@ def delete_from_risk_data_by_risk_description(risk_description):
     else:
         st.error("You do not have permission to delete risks.")
 
-def update_risk_data_by_risk_description(risk_description, data):
+def update_risk_data_by_risk_description(risk_description, updated_risk):
+    # Check if the user has the required role to update the risk data
     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
-#     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
         engine = connect_to_db()
-        if engine:
-            with engine.connect() as connection:
-                transaction = connection.begin()
-                try:
-                    set_clause = ", ".join([f"{key} = :{key}" for key in data.keys()])
-                    query = text(f"UPDATE risk_data SET {set_clause} WHERE risk_description = :risk_description")
-                    data['risk_description'] = risk_description
-                    result = connection.execute(query, data)
-                    transaction.commit()
-                    if result.rowcount > 0:
-                        st.success("Risk updated successfully.")
-                        logging.info(f"Updated risk data for {risk_description}: {data}")
-                    else:
-                        st.warning(f"No risk found with description '{risk_description}'.")
-                except Exception as e:
-                    transaction.rollback()
-                    st.error(f"Error updating risk: {e}")
-                    logging.error(f"Error updating risk {risk_description}: {e}")
-            engine.dispose()
+        if not engine:
+            st.sidebar.error("Database connection failed.")
+            return
+
+        with engine.connect() as connection:
+            # Set the @current_user_id session variable
+            user_id = st.session_state.user_id
+            connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+
+            # Prepare and execute the update statement
+            update_query = text("""
+            UPDATE risk_data
+            SET
+                risk_type = :risk_type,
+                updated_by = :updated_by,
+                date_last_updated = :date_last_updated,
+                risk_description = :risk_description,
+                cause_consequences = :cause_consequences,
+                risk_owners = :risk_owners,
+                inherent_risk_probability = :inherent_risk_probability,
+                inherent_risk_impact = :inherent_risk_impact,
+                inherent_risk_rating = :inherent_risk_rating,
+                controls = :controls,
+                Adequacy = :Adequacy,
+                control_owners = :control_owners,
+                residual_risk_probability = :residual_risk_probability,
+                residual_risk_impact = :residual_risk_impact,
+                residual_risk_rating = :residual_risk_rating,
+                Direction = :Direction,
+                Subsidiary = :Subsidiary,
+                Status = :Status,
+                opportunity_type = :opportunity_type
+            WHERE
+                risk_description = :risk_description_filter
+            """)
+
+            connection.execute(update_query, {
+                "risk_type": data['risk_type'],
+                "updated_by": data['updated_by'],
+                "date_last_updated": data['date_last_updated'],
+                "risk_description": data['risk_description'],
+                "cause_consequences": data['cause_consequences'],
+                "risk_owners": data['risk_owners'],
+                "inherent_risk_probability": data['inherent_risk_probability'],
+                "inherent_risk_impact": data['inherent_risk_impact'],
+                "inherent_risk_rating": data['inherent_risk_rating'],
+                "controls": data['controls'],
+                "Adequacy": data['Adequacy'],
+                "control_owners": data['control_owners'],
+                "residual_risk_probability": data['residual_risk_probability'],
+                "residual_risk_impact": data['residual_risk_impact'],
+                "residual_risk_rating": data['residual_risk_rating'],
+                "Direction": data['Direction'],
+                "Subsidiary": data['Subsidiary'],
+                "Status": data['Status'],
+                "opportunity_type": data['opportunity_type'],
+                "risk_description_filter": risk_description
+            })
+            st.write("Risk updated successfully.")
     else:
         st.error("You do not have permission to update risks.")
-
 
 def get_risk_id_by_description(risk_description):
     engine = connect_to_db()
@@ -351,7 +399,7 @@ if 'user_role' not in st.session_state:
 # Initialize session state variables
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
-
+    
 if 'user' not in st.session_state:
     st.session_state.user = ""
 
@@ -364,12 +412,14 @@ def login(user, password):
     if engine:
         try:
             with engine.connect() as connection:
-                query = text("SELECT password, expiry_date, role FROM credentials WHERE user = :user")
+                # Adjusted query to include 'id' field
+                query = text("SELECT id, password, expiry_date, role FROM credentials WHERE user = :user")
                 result = connection.execute(query, {"user": user})
                 row = result.fetchone()
 
                 if row:
-                    stored_password, expiry_date, role = row
+                    # Unpack the row to include 'id'
+                    user_id, stored_password, expiry_date, role = row
                     logging.info(f"Fetched credentials for {user}")
 
                     if stored_password:
@@ -397,7 +447,8 @@ def login(user, password):
                             st.session_state.logged_in = True
                             st.session_state.user = user
                             st.session_state.user_role = role
-                            logging.info(f"User {user} logged in successfully with role {role}.")
+                            st.session_state.user_id = user_id  # Store the user_id in session state
+                            logging.info(f"User {user} logged in successfully with role {role} and ID {user_id}.")
                             return True
                         else:
                             logging.info(f"Invalid credentials for {user}")
@@ -413,7 +464,7 @@ def login(user, password):
         finally:
             engine.dispose()
     return False
-
+    
 def logout():
     """Logout the user and clear session state."""
     for key in list(st.session_state.keys()):
@@ -2315,7 +2366,7 @@ def main():
                     st.write("No matching risk found to update.")
             else:
                 st.write("No risks to update.")
-
+                
 if __name__ == '__main__':
     main()
         
