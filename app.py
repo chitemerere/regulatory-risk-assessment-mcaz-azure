@@ -431,7 +431,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     
 if 'user_id' not in st.session_state:
-    st.session_state.user_id = ""
+    st.session_state.user_id = "@current_user_id"
 
 if 'user' not in st.session_state:
     st.session_state.user = ""
