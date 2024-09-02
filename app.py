@@ -495,62 +495,6 @@ def login(user, password):
             engine.dispose()
     return False
     
-# def login(user, password):
-#     logging.info(f"Attempting login for username: {user}")
-#     engine = connect_to_db()
-#     if engine:
-#         try:
-#             with engine.connect() as connection:
-#                 query = text("SELECT password, expiry_date, role FROM credentials WHERE user = :user")
-#                 result = connection.execute(query, {"user": user})
-#                 row = result.fetchone()
-
-#                 if row:
-#                     stored_password, expiry_date, role = row
-#                     logging.info(f"Fetched credentials for {user}")
-
-#                     if stored_password:
-#                         if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
-#                             logging.info(f"Password matched for {user}")
-
-#                             if expiry_date:
-#                                 try:
-#                                     expiry_date = datetime.strptime(str(expiry_date), '%Y-%m-%d')
-#                                     if expiry_date < datetime.now():
-#                                         st.sidebar.error("Your account has expired. Please contact the administrator.")
-#                                         logging.info(f"Account expired for {user}")
-#                                         return False
-#                                 except ValueError:
-#                                     st.sidebar.error("Invalid expiry date format. Please contact the administrator.")
-#                                     logging.error(f"Invalid expiry date format for {user}: {expiry_date}")
-#                                     return False
-
-#                             if not role:
-#                                 st.sidebar.error("No role found for the user. Please contact the administrator.")
-#                                 logging.error(f"No role found for {user}")
-#                                 return False
-
-#                             # If login is successful
-#                             st.session_state.logged_in = True
-#                             st.session_state.user = user
-#                             st.session_state.user_role = role
-#                             logging.info(f"User {user} logged in successfully with role {role}.")
-#                             return True
-#                         else:
-#                             logging.info(f"Invalid credentials for {user}")
-#                             return False
-#                     else:
-#                         logging.error(f"Stored password is missing for {user}")
-#                         return False
-#                 else:
-#                     logging.info(f"Username not found: {user}")
-#                     return False
-#         except Exception as e:
-#             logging.error(f"Login error: {e}")
-#         finally:
-#             engine.dispose()
-#     return False
-
 def logout():
     """Logout the user and clear session state."""
     for key in list(st.session_state.keys()):
@@ -2357,8 +2301,26 @@ def main():
         elif tab == 'Update Risk':
             st.subheader('Update Risk in Risk Data')
             
+            # Example list of risk types
+            risk_types = [
+                'Strategic Risk', 'Operational Risk', 'Compliance Risk', 
+                'Reputational Risk', 'Financial Risk', 'Regulatory Risk', 
+                'Environmental Risk', 'Human Resource Risk', 
+                'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 
+                'Public Health Risk'
+            ]
+
+            subsidiaries = [
+                'Licensing and Enforcement', 'Evaluations and Registration', 
+                'Pharmacovigilance and Clinical Trials', 'Chemistry Laboratory', 
+                'Microbiology Laboratory', 'Medical Devices Laboratory', 
+                'Quality Unit', 'Legal Unit', 'Human Resources', 
+                'Information and Communication Technology', 'Finance and Administration'
+            ]
+
+            # Main part of your code
             engine = connect_to_db()
-    
+
             # Fetch the risk descriptions for selection
             risk_descriptions = fetch_all_from_risk_data(engine)['risk_description'].tolist()
             risk_to_update = st.selectbox('Select a risk to update', risk_descriptions, key='select_risk_to_update')
@@ -2375,7 +2337,8 @@ def main():
 
                 # Display fields for updating the risk with unique keys for each widget
                 data = {
-                    "risk_type": st.selectbox('Risk Type', [...], index=..., key='risk_type'),
+                    "risk_type": st.selectbox('Risk Type', risk_types, 
+                        index=risk_types.index(selected_risk_row['risk_type']), key='risk_type'),
                     "updated_by": st.text_input('Updated By', value=selected_risk_row['updated_by'], key='updated_by'),
                     "date_last_updated": st.date_input('Date Last Updated', value=selected_risk_row['date_last_updated'], key='date_last_updated'),
                     "risk_description": st.text_input('Risk Description', value=selected_risk_row['risk_description'], key='risk_description'),
@@ -2395,9 +2358,10 @@ def main():
                         index=['Low', 'Medium', 'High'].index(selected_risk_row['residual_risk_impact']), key='residual_risk_impact'),
                     "direction": st.selectbox('Direction', ['Increasing', 'Decreasing', 'Stable'], 
                         index=['Increasing', 'Decreasing', 'Stable'].index(direction_value), key='direction'),
-                    "Subsidiary": st.selectbox('Subsidiary', sorted([...]), 
-                        index=sorted([...]).index(selected_risk_row['Subsidiary']), key='subsidiary'),
-                    "Status": st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status']), key='status'),
+                    "Subsidiary": st.selectbox('Subsidiary', sorted(subsidiaries), 
+                        index=sorted(subsidiaries).index(selected_risk_row['Subsidiary']), key='subsidiary'),
+                    "Status": st.selectbox('Status', ['Open', 'Closed'], 
+                        index=['Open', 'Closed'].index(selected_risk_row['Status']), key='status'),
                     "opportunity_type": st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], 
                         index=['No', 'Yes'].index(selected_risk_row.get('opportunity_type', 'No')), key='opportunity_type')
                 }
