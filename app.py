@@ -154,15 +154,20 @@ def fetch_all_from_risk_data(engine):
 
 def delete_from_risk_data_by_risk_description(risk_description):
     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
-#     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
         engine = connect_to_db()
         if engine:
             with engine.connect() as connection:
                 transaction = connection.begin()
                 try:
+                    # Set the @current_user_id session variable
+                    user_id = st.session_state.user_id
+                    connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+
+                    # Prepare and execute the delete statement
                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
                     result = connection.execute(query, {"risk_description": risk_description})
                     transaction.commit()
+
                     if result.rowcount > 0:
                         st.success(f"Risk '{risk_description}' deleted.")
                         logging.info(f"Deleted risk description: {risk_description}, Rows affected: {result.rowcount}")
@@ -175,6 +180,30 @@ def delete_from_risk_data_by_risk_description(risk_description):
             engine.dispose()
     else:
         st.error("You do not have permission to delete risks.")
+    
+# def delete_from_risk_data_by_risk_description(risk_description):
+#     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
+# #     if 'user_role' in st.session_state and st.session_state.user_role == 'admin':
+#         engine = connect_to_db()
+#         if engine:
+#             with engine.connect() as connection:
+#                 transaction = connection.begin()
+#                 try:
+#                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
+#                     result = connection.execute(query, {"risk_description": risk_description})
+#                     transaction.commit()
+#                     if result.rowcount > 0:
+#                         st.success(f"Risk '{risk_description}' deleted.")
+#                         logging.info(f"Deleted risk description: {risk_description}, Rows affected: {result.rowcount}")
+#                     else:
+#                         st.warning(f"No risk found with description '{risk_description}'.")
+#                 except Exception as e:
+#                     transaction.rollback()
+#                     st.error(f"Error deleting risk: {e}")
+#                     logging.error(f"Error deleting risk {risk_description}: {e}")
+#             engine.dispose()
+#     else:
+#         st.error("You do not have permission to delete risks.")
 
 def update_risk_data_by_risk_description(risk_description, data):
     engine = connect_to_db()
@@ -2284,10 +2313,69 @@ def main():
             
             engine = connect_to_db()
             
-            if st.button('Update Risk'):
-                update_risk_data_by_risk_description(risk_to_update, data)
-                st.session_state['risk_data'] = fetch_all_from_risk_data(engine)
-                st.write("Risk updated.")
+            # Fetch the risk descriptions for selection
+            risk_descriptions = fetch_all_from_risk_data(engine)['risk_description'].tolist()
+            risk_to_update = st.selectbox('Select a risk to update', risk_descriptions)
+
+            # Filter the DataFrame for the selected risk description
+            filtered_risk_data = st.session_state['risk_data'][st.session_state['risk_data']['risk_description'] == risk_to_update]
+
+            if not filtered_risk_data.empty:
+                # Select the row corresponding to the selected risk description
+                selected_risk_row = filtered_risk_data.iloc[0]
+
+                # Display fields for updating the risk with the current value pre-selected
+                data = {
+                    "risk_type": st.selectbox('Risk Type', [
+                        'Strategic Risk', 'Operational Risk', 'Compliance Risk', 'Reputational Risk', 'Financial Risk',
+                        'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
+                        'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
+                    ], index=[
+                        'Strategic Risk', 'Operational Risk', 'Compliance Risk', 'Reputational Risk', 'Financial Risk',
+                        'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
+                        'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
+                    ].index(selected_risk_row['risk_type'])),
+                    "updated_by": st.text_input('Updated By', value=selected_risk_row['updated_by']),
+                    "date_last_updated": st.date_input('Date Last Updated', value=selected_risk_row['date_last_updated']),
+                    "risk_description": st.text_input('Risk Description', value=selected_risk_row['risk_description']),
+                    "cause_consequences": st.text_input('Cause & Consequences', value=selected_risk_row['cause_consequences']),
+                    "risk_owners": st.text_input('Risk Owners', value=selected_risk_row['risk_owners']),
+                    "inherent_risk_probability": st.selectbox('Inherent Risk Probability', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['inherent_risk_probability'])),
+                    "inherent_risk_impact": st.selectbox('Inherent Risk Impact', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['inherent_risk_impact'])),
+                    "inherent_risk_rating": calculate_risk_rating(st.selectbox('Inherent Risk Probability', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['inherent_risk_probability'])),
+                                                                 st.selectbox('Inherent Risk Impact', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['inherent_risk_impact']))),
+                    "controls": st.text_input('Controls', value=selected_risk_row['controls']),
+                    "adequacy": st.selectbox('Adequacy', ['Weak', 'Acceptable', 'Strong'], index=['Weak', 'Acceptable', 'Strong'].index(selected_risk_row['adequacy'])),
+                    "control_owners": st.text_input('Control Owners', value=selected_risk_row['control_owners']),
+                    "residual_risk_probability": st.selectbox('Residual Risk Probability', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['residual_risk_probability'])),
+                    "residual_risk_impact": st.selectbox('Residual Risk Impact', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['residual_risk_impact'])),
+                    "residual_risk_rating": calculate_risk_rating(st.selectbox('Residual Risk Probability', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['residual_risk_probability'])),
+                                                                  st.selectbox('Residual Risk Impact', ['Low', 'Medium', 'High'], index=['Low', 'Medium', 'High'].index(selected_risk_row['residual_risk_impact']))),
+                    "direction": st.selectbox('Direction', ['Increasing', 'Decreasing', 'Stable'], index=['Increasing', 'Decreasing', 'Stable'].index(selected_risk_row['direction'])),
+                    "Subsidiary": st.selectbox('Subsidiary', sorted([
+                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
+                        'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
+                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
+                    ]), index=sorted([
+                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
+                        'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
+                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
+                    ]).index(selected_risk_row['Subsidiary'])),
+                    "Status": st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status'])),
+                    "opportunity_type": st.selectbox('Is there an Opportunity associated with this risk?', ['No', 'Yes'], index=['No', 'Yes'].index(selected_risk_row.get('opportunity_type', 'No')))
+                }
+
+                if st.button('Update Risk'):
+                    update_risk_data_by_risk_description(risk_to_update, data)
+                    st.session_state['risk_data'] = fetch_all_from_risk_data(engine)
+                    st.write("Risk updated.")
+            else:
+                st.write("No matching risk found to update.")
+            
+#             if st.button('Update Risk'):
+#                 update_risk_data_by_risk_description(risk_to_update, data)
+#                 st.session_state['risk_data'] = fetch_all_from_risk_data(engine)
+#                 st.write("Risk updated.")
             
 #             engine = connect_to_db()
             
