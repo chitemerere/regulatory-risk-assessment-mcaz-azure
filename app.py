@@ -184,7 +184,7 @@ def delete_from_risk_data_by_risk_description(risk_description):
             engine.dispose()
     else:
         st.error("You do not have permission to delete risks.")
-
+        
 def update_risk_data_by_risk_description(risk_description, updated_risk):
     # Check if the user has the required role to update the risk data
     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
@@ -226,30 +226,96 @@ def update_risk_data_by_risk_description(risk_description, updated_risk):
             """)
 
             connection.execute(update_query, {
-                "risk_type": data['risk_type'],
-                "updated_by": data['updated_by'],
-                "date_last_updated": data['date_last_updated'],
-                "risk_description": data['risk_description'],
-                "cause_consequences": data['cause_consequences'],
-                "risk_owners": data['risk_owners'],
-                "inherent_risk_probability": data['inherent_risk_probability'],
-                "inherent_risk_impact": data['inherent_risk_impact'],
-                "inherent_risk_rating": data['inherent_risk_rating'],
-                "controls": data['controls'],
-                "Adequacy": data['Adequacy'],
-                "control_owners": data['control_owners'],
-                "residual_risk_probability": data['residual_risk_probability'],
-                "residual_risk_impact": data['residual_risk_impact'],
-                "residual_risk_rating": data['residual_risk_rating'],
-                "Direction": data['Direction'],
-                "Subsidiary": data['Subsidiary'],
-                "Status": data['Status'],
-                "opportunity_type": data['opportunity_type'],
+                "risk_type": updated_risk['risk_type'],
+                "updated_by": updated_risk['updated_by'],
+                "date_last_updated": updated_risk['date_last_updated'],
+                "risk_description": updated_risk['risk_description'],
+                "cause_consequences": updated_risk['cause_consequences'],
+                "risk_owners": updated_risk['risk_owners'],
+                "inherent_risk_probability": updated_risk['inherent_risk_probability'],
+                "inherent_risk_impact": updated_risk['inherent_risk_impact'],
+                "inherent_risk_rating": updated_risk['inherent_risk_rating'],
+                "controls": updated_risk['controls'],
+                "Adequacy": updated_risk['Adequacy'],
+                "control_owners": updated_risk['control_owners'],
+                "residual_risk_probability": updated_risk['residual_risk_probability'],
+                "residual_risk_impact": updated_risk['residual_risk_impact'],
+                "residual_risk_rating": updated_risk['residual_risk_rating'],
+                "Direction": updated_risk['Direction'],
+                "Subsidiary": updated_risk['Subsidiary'],
+                "Status": updated_risk['Status'],
+                "opportunity_type": updated_risk['opportunity_type'],
                 "risk_description_filter": risk_description
             })
             st.write("Risk updated successfully.")
     else:
         st.error("You do not have permission to update risks.")
+
+# def update_risk_data_by_risk_description(risk_description, updated_risk):
+#     # Check if the user has the required role to update the risk data
+#     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
+#         engine = connect_to_db()
+#         if not engine:
+#             st.sidebar.error("Database connection failed.")
+#             return
+
+#         with engine.connect() as connection:
+#             # Set the @current_user_id session variable
+#             user_id = st.session_state.user_id
+#             connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+
+#             # Prepare and execute the update statement
+#             update_query = text("""
+#             UPDATE risk_data
+#             SET
+#                 risk_type = :risk_type,
+#                 updated_by = :updated_by,
+#                 date_last_updated = :date_last_updated,
+#                 risk_description = :risk_description,
+#                 cause_consequences = :cause_consequences,
+#                 risk_owners = :risk_owners,
+#                 inherent_risk_probability = :inherent_risk_probability,
+#                 inherent_risk_impact = :inherent_risk_impact,
+#                 inherent_risk_rating = :inherent_risk_rating,
+#                 controls = :controls,
+#                 Adequacy = :Adequacy,
+#                 control_owners = :control_owners,
+#                 residual_risk_probability = :residual_risk_probability,
+#                 residual_risk_impact = :residual_risk_impact,
+#                 residual_risk_rating = :residual_risk_rating,
+#                 Direction = :Direction,
+#                 Subsidiary = :Subsidiary,
+#                 Status = :Status,
+#                 opportunity_type = :opportunity_type
+#             WHERE
+#                 risk_description = :risk_description_filter
+#             """)
+
+#             connection.execute(update_query, {
+#                 "risk_type": data['risk_type'],
+#                 "updated_by": data['updated_by'],
+#                 "date_last_updated": data['date_last_updated'],
+#                 "risk_description": data['risk_description'],
+#                 "cause_consequences": data['cause_consequences'],
+#                 "risk_owners": data['risk_owners'],
+#                 "inherent_risk_probability": data['inherent_risk_probability'],
+#                 "inherent_risk_impact": data['inherent_risk_impact'],
+#                 "inherent_risk_rating": data['inherent_risk_rating'],
+#                 "controls": data['controls'],
+#                 "Adequacy": data['Adequacy'],
+#                 "control_owners": data['control_owners'],
+#                 "residual_risk_probability": data['residual_risk_probability'],
+#                 "residual_risk_impact": data['residual_risk_impact'],
+#                 "residual_risk_rating": data['residual_risk_rating'],
+#                 "Direction": data['Direction'],
+#                 "Subsidiary": data['Subsidiary'],
+#                 "Status": data['Status'],
+#                 "opportunity_type": data['opportunity_type'],
+#                 "risk_description_filter": risk_description
+#             })
+#             st.write("Risk updated successfully.")
+#     else:
+#         st.error("You do not have permission to update risks.")
 
 def get_risk_id_by_description(risk_description):
     engine = connect_to_db()
