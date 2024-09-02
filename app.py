@@ -151,7 +151,7 @@ def fetch_all_from_risk_data(engine):
     except Exception as e:
         st.error(f"An error occurred while fetching data: {e}")
         return pd.DataFrame()
-
+    
 def delete_from_risk_data_by_risk_description(risk_description):
     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
         engine = connect_to_db()
@@ -159,9 +159,13 @@ def delete_from_risk_data_by_risk_description(risk_description):
             with engine.connect() as connection:
                 transaction = connection.begin()
                 try:
-                    # Set the @current_user_id session variable
-                    user_id = st.session_state.user_id
-                    connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+                    # Ensure the @current_user_id session variable is set
+                    if 'user_id' in st.session_state:
+                        user_id = st.session_state['user_id']
+                        connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+                    else:
+                        st.error("User ID not found in session state. Cannot proceed with deletion.")
+                        return
 
                     # Prepare and execute the delete statement
                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
@@ -180,6 +184,35 @@ def delete_from_risk_data_by_risk_description(risk_description):
             engine.dispose()
     else:
         st.error("You do not have permission to delete risks.")
+
+# def delete_from_risk_data_by_risk_description(risk_description):
+#     if 'user_role' in st.session_state and st.session_state.user_role in ['admin', 'superadmin']:
+#         engine = connect_to_db()
+#         if engine:
+#             with engine.connect() as connection:
+#                 transaction = connection.begin()
+#                 try:
+#                     # Set the @current_user_id session variable
+#                     user_id = st.session_state.user_id
+#                     connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+
+#                     # Prepare and execute the delete statement
+#                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
+#                     result = connection.execute(query, {"risk_description": risk_description})
+#                     transaction.commit()
+
+#                     if result.rowcount > 0:
+#                         st.success(f"Risk '{risk_description}' deleted.")
+#                         logging.info(f"Deleted risk description: {risk_description}, Rows affected: {result.rowcount}")
+#                     else:
+#                         st.warning(f"No risk found with description '{risk_description}'.")
+#                 except Exception as e:
+#                     transaction.rollback()
+#                     st.error(f"Error deleting risk: {e}")
+#                     logging.error(f"Error deleting risk {risk_description}: {e}")
+#             engine.dispose()
+#     else:
+#         st.error("You do not have permission to delete risks.")
     
 
 def update_risk_data_by_risk_description(risk_description, data):
