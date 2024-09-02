@@ -430,9 +430,6 @@ if 'user_role' not in st.session_state:
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = "@current_user_id"
-
 if 'user' not in st.session_state:
     st.session_state.user = ""
 
@@ -445,12 +442,14 @@ def login(user, password):
     if engine:
         try:
             with engine.connect() as connection:
-                query = text("SELECT password, expiry_date, role FROM credentials WHERE user = :user")
+                # Adjusted query to include 'id' field
+                query = text("SELECT id, password, expiry_date, role FROM credentials WHERE user = :user")
                 result = connection.execute(query, {"user": user})
                 row = result.fetchone()
 
                 if row:
-                    stored_password, expiry_date, role = row
+                    # Unpack the row to include 'id'
+                    user_id, stored_password, expiry_date, role = row
                     logging.info(f"Fetched credentials for {user}")
 
                     if stored_password:
@@ -478,7 +477,8 @@ def login(user, password):
                             st.session_state.logged_in = True
                             st.session_state.user = user
                             st.session_state.user_role = role
-                            logging.info(f"User {user} logged in successfully with role {role}.")
+                            st.session_state.user_id = user_id  # Store the user_id in session state
+                            logging.info(f"User {user} logged in successfully with role {role} and ID {user_id}.")
                             return True
                         else:
                             logging.info(f"Invalid credentials for {user}")
@@ -494,6 +494,62 @@ def login(user, password):
         finally:
             engine.dispose()
     return False
+    
+# def login(user, password):
+#     logging.info(f"Attempting login for username: {user}")
+#     engine = connect_to_db()
+#     if engine:
+#         try:
+#             with engine.connect() as connection:
+#                 query = text("SELECT password, expiry_date, role FROM credentials WHERE user = :user")
+#                 result = connection.execute(query, {"user": user})
+#                 row = result.fetchone()
+
+#                 if row:
+#                     stored_password, expiry_date, role = row
+#                     logging.info(f"Fetched credentials for {user}")
+
+#                     if stored_password:
+#                         if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+#                             logging.info(f"Password matched for {user}")
+
+#                             if expiry_date:
+#                                 try:
+#                                     expiry_date = datetime.strptime(str(expiry_date), '%Y-%m-%d')
+#                                     if expiry_date < datetime.now():
+#                                         st.sidebar.error("Your account has expired. Please contact the administrator.")
+#                                         logging.info(f"Account expired for {user}")
+#                                         return False
+#                                 except ValueError:
+#                                     st.sidebar.error("Invalid expiry date format. Please contact the administrator.")
+#                                     logging.error(f"Invalid expiry date format for {user}: {expiry_date}")
+#                                     return False
+
+#                             if not role:
+#                                 st.sidebar.error("No role found for the user. Please contact the administrator.")
+#                                 logging.error(f"No role found for {user}")
+#                                 return False
+
+#                             # If login is successful
+#                             st.session_state.logged_in = True
+#                             st.session_state.user = user
+#                             st.session_state.user_role = role
+#                             logging.info(f"User {user} logged in successfully with role {role}.")
+#                             return True
+#                         else:
+#                             logging.info(f"Invalid credentials for {user}")
+#                             return False
+#                     else:
+#                         logging.error(f"Stored password is missing for {user}")
+#                         return False
+#                 else:
+#                     logging.info(f"Username not found: {user}")
+#                     return False
+#         except Exception as e:
+#             logging.error(f"Login error: {e}")
+#         finally:
+#             engine.dispose()
+#     return False
 
 def logout():
     """Logout the user and clear session state."""
