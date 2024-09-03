@@ -716,7 +716,7 @@ def main():
 
     # Additional application logic goes here
     if st.session_state.logged_in:
-        st.write(f"Welcome {st.session_state.user}! You are logged in as {st.session_state.user_role} and ID {st.session_state.user_id}.")
+        st.write(f"Welcome {st.session_state.user}! You are logged in as {st.session_state.user_role} and User ID {st.session_state.user_id}.")
     else:
         st.write("Please log in to access the application.")
     
