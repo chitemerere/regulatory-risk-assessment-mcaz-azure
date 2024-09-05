@@ -2079,7 +2079,7 @@ def main():
                 # Map 'Yes' to 'Opportunity' and 'No' to 'Risk'
                 opportunity_type_distribution['description'] = opportunity_type_distribution['opportunity_type'].map({
                     'Yes': 'Opportunities',
-                    'No': 'Risks'
+                    'No': 'Threats'
                 })
 
                 # Create labels that include both the description and the count
