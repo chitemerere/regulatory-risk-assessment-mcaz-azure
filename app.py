@@ -218,7 +218,7 @@ def update_risk_data_by_risk_description(risk_description, updated_risk):
                 residual_risk_impact = :residual_risk_impact,
                 residual_risk_rating = :residual_risk_rating,
                 Direction = :Direction,
-                Subsidiary = :Subsidiary,
+                Unit = :Unit,
                 Status = :Status,
                 opportunity_type = :opportunity_type
             WHERE
@@ -243,7 +243,7 @@ def update_risk_data_by_risk_description(risk_description, updated_risk):
                 "residual_risk_impact": updated_risk['residual_risk_impact'],
                 "residual_risk_rating": updated_risk['residual_risk_rating'],
                 "Direction": updated_risk['Direction'],  # Ensure the key matches what is used in the dictionary
-                "Subsidiary": updated_risk['Subsidiary'],
+                "Unit": updated_risk['Unit'],
                 "Status": updated_risk['Status'],
                 "opportunity_type": updated_risk['opportunity_type'],
                 "risk_description_filter": risk_description
@@ -542,6 +542,25 @@ def get_risk_appetite(risk_type):
         'Public Health Risk': ['Low', 'Moderate', 'High']
     }
     return risk_appetite_map.get(risk_type, [])
+
+# Define unit and add 'All' option, then sort alphabetically
+units = [
+    'All',
+    'Licensing and Enforcement',
+    'Evaluations and Registration',
+    'Pharmacovigilance and Clinical Trials',
+    'Chemistry Laboratory',
+    'Microbiology Laboratory',
+    'Medical Devices Laboratory',
+    'Quality Unit',
+    'Legal Unit',
+    'Human Resources',
+    'Information and Communication Technology',
+    'Finance and Administration'                            
+]
+units.sort()
+
+# Use unit in any part of the application
 
 # Function to get risk by description
 def fetch_risk_by_description(risk_description):
@@ -1013,8 +1032,8 @@ def main():
             # New field for Status
             status = st.selectbox('Status', ['Open', 'Closed'], key='status')
 
-            # New field for Subsidiary
-            st.session_state['subsidiary'] = st.selectbox('Subsidiary', sorted([
+            # New field for unit
+            st.session_state['unit'] = st.selectbox('Unit', sorted([
                 'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                 'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
                 'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
@@ -1044,7 +1063,7 @@ def main():
                     'residual_risk_impact': residual_risk_impact,
                     'residual_risk_rating': residual_risk_rating,
                     'direction': direction,  # Include the new direction field
-                    'subsidiary': st.session_state['subsidiary'],  # Include the new subsidiary field
+                    'unit': st.session_state['unit'],  # Include the new unit field
                     'Status': status,  # Include the status field
                     'opportunity_type': opportunity_type  # Include the opportunity type field
                 }
@@ -1139,30 +1158,13 @@ def main():
                                           (risk_data['date_last_updated'] <= pd.Timestamp(to_date))]
             else:
                 st.warning("The data is empty or missing the 'date_last_updated' column.")
+                     
+            # Add a selectbox for unit filtering
+            selected_unit = st.selectbox('Select Unit', units)
 
-            # Define subsidiaries and add 'All' option, then sort alphabetically
-            subsidiaries = [
-                'All',
-                'Licensing and Enforcement',
-                'Evaluations and Registration',
-                'Pharmacovigilance and Clincal Trials',
-                'Chemistry Laboratory',
-                'Microbiology Laboratory',
-                'Medical Devices Laboratory',
-                'Quality Unit',
-                'Legal Unit',
-                'Human Resources',
-                'Information and Communication Technology',
-                'Finance and Administration'                            
-            ]
-            subsidiaries.sort()
-            
-            # Add a selectbox for subsidiary filtering
-            selected_subsidiary = st.selectbox('Select Subsidiary', subsidiaries)
-
-            # Apply subsidiary filter if not 'All'
-            if selected_subsidiary != 'All':
-                filtered_data = filtered_data[(filtered_data['Subsidiary'] == selected_subsidiary) | (filtered_data['Subsidiary'].isna())]
+            # Apply unit filter if not 'All'
+            if selected_unit != 'All':
+                filtered_data = filtered_data[(filtered_data['Unit'] == selected_unit) | (filtered_data['Unit'].isna())]
                 
             # Add a filter for risk owners
             risk_owners = ['All'] + sorted(risk_data['risk_owners'].dropna().unique().tolist())
@@ -1184,7 +1186,7 @@ def main():
 
             # Display the filtered data or a message if it's empty
             if filtered_data.empty:
-                st.info("No data available for the selected date range and subsidiary.")
+                st.info("No data available for the selected date range and unit.")
             else:
                 # Apply the style to all relevant columns
                 styled_risk_data = filtered_data.style.applymap(highlight_risk, subset=['inherent_risk_rating', 'residual_risk_rating']) \
@@ -1271,7 +1273,7 @@ def main():
 
             # Display the filtered data or a message if it's empty
             if filtered_data.empty:
-                st.info("No data available for the selected date range and subsidiary.")
+                st.info("No data available for the selected date range and unit.")
             else:
                 # Filter the data to show only opportunities
                 opportunity_data = filtered_data[filtered_data['opportunity_type'] == 'Yes']
@@ -1357,29 +1359,12 @@ def main():
             else:
                 st.warning("The data is empty or missing the 'date_last_updated' column.")
 
-            # Define subsidiaries and add 'All' option, then sort alphabetically
-            subsidiaries = [
-                'All',
-                'Licensing and Enforcement',
-                'Evaluations and Registration',
-                'Pharmacovigilance and Clincal Trials',
-                'Chemistry Laboratory',
-                'Microbiology Laboratory',
-                'Medical Devices Laboratory',
-                'Quality Unit',
-                'Legal Unit',
-                'Human Resources',
-                'Information and Communication Technology',
-                'Finance and Administration'                            
-            ]
-            subsidiaries.sort()
+            # Add a selectbox for unit filtering
+            selected_unit = st.selectbox('Select Unit', units)
 
-            # Add a selectbox for subsidiary filtering
-            selected_subsidiary = st.selectbox('Select Subsidiary', subsidiaries)
-
-            # Apply subsidiary filter if not 'All'
-            if selected_subsidiary != 'All':
-                filtered_data = filtered_data[(filtered_data['Subsidiary'] == selected_subsidiary) | (filtered_data['Subsidiary'].isna())]
+            # Apply unit filter if not 'All'
+            if selected_unit != 'All':
+                filtered_data = filtered_data[(filtered_data['Unit'] == selected_unit) | (filtered_data['Unit'].isna())]
                 
             # Add a filter for risk owners
             risk_owners = ['All'] + sorted(risk_data['risk_owners'].dropna().unique().tolist())
@@ -1393,7 +1378,7 @@ def main():
 
             # Display the filtered data or a message if it's empty
             if filtered_data.empty:
-                st.info("No data available for the selected date range and subsidiary.")
+                st.info("No data available for the selected date range and unit.")
             else:
                 # Before Risk Appetite Analysis
                 st.subheader('Before Risk Appetite')
@@ -1765,29 +1750,12 @@ def main():
             else:
                 st.warning("The data is empty or missing the 'date_last_updated' column.")
 
-            # Define subsidiaries and add 'All' option, then sort alphabetically
-            subsidiaries = [
-                'All',
-                'Licensing and Enforcement',
-                'Evaluations and Registration',
-                'Pharmacovigilance and Clincal Trials',
-                'Chemistry Laboratory',
-                'Microbiology Laboratory',
-                'Medical Devices Laboratory',
-                'Quality Unit',
-                'Legal Unit',
-                'Human Resources',
-                'Information and Communication Technology',
-                'Finance and Administration'                            
-            ]
-            subsidiaries.sort()
+            # Add a selectbox for unit filtering
+            selected_unit = st.selectbox('Select Unit', units)
 
-            # Add a selectbox for subsidiary filtering
-            selected_subsidiary = st.selectbox('Select Subsidiary', subsidiaries)
-
-            # Apply subsidiary filter if not 'All'
-            if selected_subsidiary != 'All':
-                filtered_data = filtered_data[(filtered_data['Subsidiary'] == selected_subsidiary) | (filtered_data['Subsidiary'].isna())]
+            # Apply unit filter if not 'All'
+            if selected_unit != 'All':
+                filtered_data = filtered_data[(filtered_data['Unit'] == selected_unit) | (filtered_data['Unit'].isna())]
                 
             # Add a filter for risk owners
             risk_owners = ['All'] + sorted(risk_data['risk_owners'].dropna().unique().tolist())
@@ -1801,7 +1769,7 @@ def main():
 
             # If filtered_data is empty, provide a message and set default date inputs
             if filtered_data.empty:
-                st.info("No data available for the selected date range and subsidiary.")
+                st.info("No data available for the selected date range and unit.")
 
             else:
                 # Before Risk Appetite Analysis
@@ -2321,8 +2289,8 @@ def main():
                     updated_by = st.text_input('updated_by', value=selected_risk_row['updated_by'])
                     updated_date_last_updated = st.date_input('date_last_updated', value=selected_risk_row['date_last_updated'])
 
-                    # New field for updating Subsidiary
-                    updated_subsidiary = st.selectbox('Subsidiary', sorted([
+                    # New field for updating unit
+                    updated_unit = st.selectbox('Unit', sorted([
                         'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                         'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
                         'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
@@ -2330,7 +2298,7 @@ def main():
                         'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
                         'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
                         'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
-                    ]).index(selected_risk_row['Subsidiary']))
+                    ]).index(selected_risk_row['Unit']))
 
                     # New field for updating Status
                     updated_status = st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status']))
@@ -2356,7 +2324,7 @@ def main():
                         'residual_risk_impact': updated_residual_risk_impact,
                         'residual_risk_rating': calculate_risk_rating(updated_residual_risk_probability, updated_residual_risk_impact),
                         'Direction': updated_direction,  # Capitalize key to match database field
-                        'Subsidiary': updated_subsidiary,
+                        'Unit': updated_unit,
                         'Status': updated_status,
                         'opportunity_type': updated_opportunity_type
                     }
