@@ -113,6 +113,14 @@ def insert_into_risk_data(data):
         with engine.connect() as connection:
             transaction = connection.begin()
             try:
+                # Ensure the @current_user_id session variable is set
+                if 'user_id' in st.session_state:
+                    user_id = st.session_state['user_id']
+                    connection.execute(text("SET @current_user_id = :user_id"), {"user_id": user_id})
+                else:
+                    st.error("User ID not found in session state. Cannot proceed with insertion.")
+                    return  # Early return if user_id is not set
+                
                 # Construct placeholders and columns from the data dictionary
                 placeholders = ', '.join([f":{key}" for key in data.keys()])
                 columns = ', '.join([f"`{key}`" for key in data.keys()])
@@ -127,10 +135,38 @@ def insert_into_risk_data(data):
                 transaction.commit()
                 logging.info(f"Inserted data: {data}")
             except Exception as e:
+                # Rollback the transaction in case of error
                 transaction.rollback()
                 st.write(f"Error during insertion to risk_data: {e}")
                 logging.error(f"Error during insertion: {e}")
-        engine.dispose()
+            finally:
+                # Ensure the connection is disposed in all cases
+                engine.dispose()
+        
+# def insert_into_risk_data(data):
+#     engine = connect_to_db()
+#     if engine:
+#         with engine.connect() as connection:
+#             transaction = connection.begin()
+#             try:
+#                 # Construct placeholders and columns from the data dictionary
+#                 placeholders = ', '.join([f":{key}" for key in data.keys()])
+#                 columns = ', '.join([f"`{key}`" for key in data.keys()])
+                
+#                 # Prepare the query using the text function
+#                 query = text(f"INSERT INTO risk_data ({columns}) VALUES ({placeholders})")
+                
+#                 # Execute the query with the data dictionary
+#                 connection.execute(query, data)  # Pass the data as a dictionary
+                
+#                 # Commit the transaction
+#                 transaction.commit()
+#                 logging.info(f"Inserted data: {data}")
+#             except Exception as e:
+#                 transaction.rollback()
+#                 st.write(f"Error during insertion to risk_data: {e}")
+#                 logging.error(f"Error during insertion: {e}")
+#         engine.dispose()
         
 # Function to fetch the latest data from the database
 def fetch_latest_data(engine):
