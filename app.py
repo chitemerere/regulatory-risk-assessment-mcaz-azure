@@ -142,32 +142,8 @@ def insert_into_risk_data(data):
             finally:
                 # Ensure the connection is disposed in all cases
                 engine.dispose()
-        
-# def insert_into_risk_data(data):
-#     engine = connect_to_db()
-#     if engine:
-#         with engine.connect() as connection:
-#             transaction = connection.begin()
-#             try:
-#                 # Construct placeholders and columns from the data dictionary
-#                 placeholders = ', '.join([f":{key}" for key in data.keys()])
-#                 columns = ', '.join([f"`{key}`" for key in data.keys()])
-                
-#                 # Prepare the query using the text function
-#                 query = text(f"INSERT INTO risk_data ({columns}) VALUES ({placeholders})")
-                
-#                 # Execute the query with the data dictionary
-#                 connection.execute(query, data)  # Pass the data as a dictionary
-                
-#                 # Commit the transaction
-#                 transaction.commit()
-#                 logging.info(f"Inserted data: {data}")
-#             except Exception as e:
-#                 transaction.rollback()
-#                 st.write(f"Error during insertion to risk_data: {e}")
-#                 logging.error(f"Error during insertion: {e}")
-#         engine.dispose()
-        
+   
+      
 # Function to fetch the latest data from the database
 def fetch_latest_data(engine):
     try:
@@ -1210,13 +1186,31 @@ def main():
             if selected_risk_owner != 'All':
                 filtered_data = filtered_data[filtered_data['risk_owners'] == selected_risk_owner] 
                 
-            # Add a filter for risk category
-            risk_categories = ['All'] + sorted(risk_data['risk_category'].dropna().unique().tolist())
+            # Initialize filtered_data
+            filtered_data = risk_data.copy() if not risk_data.empty else pd.DataFrame()
+
+            # Check if 'risk_category' exists and has data
+            if 'risk_category' in risk_data.columns and not risk_data['risk_category'].dropna().empty:
+                # Add a filter for risk category
+                risk_categories = ['All'] + sorted(risk_data['risk_category'].dropna().unique().tolist())
+            else:
+                # Default to 'All' if no data or column missing
+                risk_categories = ['All']
+
+            # Selectbox for risk category
             selected_risk_category = st.selectbox('Select Risk Category', risk_categories)
 
-            # Apply risk category filter if not 'All'
-            if selected_risk_category != 'All':
+            # Apply risk category filter if not 'All' and if column exists
+            if selected_risk_category != 'All' and 'risk_category' in risk_data.columns:
                 filtered_data = filtered_data[filtered_data['risk_category'] == selected_risk_category]
+            else:
+                st.warning("No risk category data available or no filter applied.")
+
+            # Display filtered data (or a message if it's empty)
+            if not filtered_data.empty:
+                st.dataframe(filtered_data)
+            else:
+                st.warning("No data available to display.")
 
             st.subheader('Risk Data')
 
