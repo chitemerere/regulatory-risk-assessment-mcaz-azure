@@ -1206,12 +1206,6 @@ def main():
             else:
                 st.warning("No risk category data available or no filter applied.")
 
-            # Display filtered data (or a message if it's empty)
-            if not filtered_data.empty:
-                st.dataframe(filtered_data)
-            else:
-                st.warning("No data available to display.")
-
             st.subheader('Risk Data')
 
             # Display the filtered data or a message if it's empty
