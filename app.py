@@ -761,7 +761,7 @@ def main():
             else:
                 st.sidebar.error("Registration failed. The username might already be taken.")
     elif st.session_state.logged_in:
-        st.sidebar.info("Only supper admin users can register new users.")
+        st.sidebar.info("Only super admin users can register new users.")
 
     if st.session_state.logged_in:
         # Main application content goes here
@@ -849,7 +849,8 @@ def main():
         tab = st.sidebar.selectbox(
             'Choose a function',
             ('Risk Matrix', 'Main Application', 'Risks Overview', 'Risks Owners & Control Owners', 
-             'Adjusted Risk Matrices', 'Performance Metrics', 'Reports','Delete Risk', 'Update Risk')
+             'Adjusted Risk Matrices', 'Performance Metrics', 'Reports','Delete Risk', 'Update Risk', 
+             'Delete/Update User')
         )
 
         if 'risk_data' not in st.session_state:
@@ -2262,7 +2263,88 @@ def main():
                         st.write("Risk deleted.")
             else:
                 st.write("No risks to delete.")
-          
+         
+        elif tab == 'Delete/Update User':
+            st.subheader('Delete and Update Users')
+            
+            # Assuming you have already established a database connection
+            engine = connect_to_db()
+
+            # Function to retrieve user information (username and role) from the credentials table
+            def get_user_info(username):
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT user, role FROM credentials WHERE user = :username"), {'username': username}).fetchone()
+                    if result:
+                        # Accessing by positional indices
+                        return result[0], result[1]
+                    return None, None
+
+            # Function to retrieve all usernames from the credentials table
+            def get_all_usernames():
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT user FROM credentials")).fetchall()
+                    return [row[0] for row in result]
+
+            # Function to retrieve distinct roles from the credentials table
+            def get_all_roles():
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT DISTINCT role FROM credentials")).fetchall()
+                    return [row[0] for row in result]
+
+            # Assuming the logged-in user is in session state
+            logged_in_user = st.session_state.user
+
+            # Retrieve the current user's name and role from the credentials table
+            current_user, current_role = get_user_info(logged_in_user)
+
+            # Fetch the list of all usernames and roles from the database
+            all_usernames = get_all_usernames()
+            all_roles = get_all_roles()
+
+            # Tab logic
+            tab = st.selectbox("Select Option", ["Delete User", "Update User"])
+
+            # Check if the current user is superadmin
+            if current_role == "superadmin":
+
+                # DELETE USER LOGIC
+                if tab == "Delete User":
+                    st.subheader("Delete User")
+                    delete_user = st.selectbox("Select username to delete", all_usernames)  # Dynamically populate the usernames
+                    if st.button("Delete"):
+                        try:
+                            with engine.connect() as conn:
+                                conn.execute(text(f"DELETE FROM credentials WHERE user = :user"), {'user': delete_user})
+                                st.success(f"User {delete_user} deleted successfully.")
+                        except Exception as e:
+                            st.error(f"Error deleting user: {e}")
+
+                # UPDATE USER LOGIC
+                elif tab == "Update User":
+                    st.subheader("Update User")
+
+                    # Select user to update
+                    update_user = st.selectbox("Select username to update", all_usernames)  # Dynamically populate the usernames
+
+                    # Fetch the current role of the selected user
+                    selected_user, selected_role = get_user_info(update_user)
+
+                    # Display the user's current role in the dropdown and allow it to be changed
+                    new_role = st.selectbox("Select new role", all_roles, index=all_roles.index(selected_role))  # Set default to current role
+
+                    # Select new expiry date
+                    new_expiry_date = st.date_input("Select new expiry date")
+
+                    if st.button("Update"):
+                        try:
+                            with engine.connect() as conn:
+                                conn.execute(text(f"UPDATE credentials SET role = :role, expiry_date = :expiry WHERE user = :user"), 
+                                             {'role': new_role, 'expiry': new_expiry_date, 'user': update_user})
+                                st.success(f"User {update_user} updated successfully.")
+                        except Exception as e:
+                            st.error(f"Error updating user: {e}")
+            else:
+                st.warning("You do not have permission to delete or update users.")
                              
         elif tab == 'Update Risk':
             st.subheader('Update Risk in Risk Data')
@@ -2280,18 +2362,18 @@ def main():
                 if not filtered_risk_data.empty:
                     # Select the row corresponding to the selected risk description
                     selected_risk_row = filtered_risk_data.iloc[0]
+                    
+                    # Define the list of risk types once
+                    risk_types = sorted([
+                        'Strategic Risk', 'Operational Risk', 'Compliance Risk', 'Reputational Risk', 'Financial Risk',
+                        'Regulatory Risk', 'Environmental Risk', 'Human Resource Risk',
+                        'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
+                    ])
 
                     # Allow user to change the 'risk_type' with the current value pre-selected
-                    st.session_state['risk_type'] = st.selectbox('Risk Type', sorted([
-                                'Strategic Risk', 'Operational Risk', 'Compliance Risk', 'Reputational Risk', 'Financial Risk',
-                                'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
-                                'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
-                            ]), index=sorted([
-                                'Strategic Risk', 'Operational Risk', 'Compliance Risk', 'Reputational Risk', 'Financial Risk',
-                                'Regulatory Risk', 'Envioronmental Risk', 'Human Resource Risk',
-                                'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
-                            ]).index(selected_risk_row['risk_type']))
-                    
+                    st.session_state['risk_type'] = st.selectbox('Risk Type', risk_types, 
+                        index=risk_types.index(selected_risk_row['risk_type']))
+                   
                     # Display fields for updating the risk
                     updated_risk_description = st.text_input('risk_description', value=selected_risk_row['risk_description'])
                     updated_cause_consequences = st.text_input('cause_consequences', value=selected_risk_row['cause_consequences'])
@@ -2312,17 +2394,16 @@ def main():
 
                     updated_by = st.text_input('updated_by', value=selected_risk_row['updated_by'])
                     updated_date_last_updated = st.date_input('date_last_updated', value=selected_risk_row['date_last_updated'])
+                    
+                    # Define the list of units once
+                    units = sorted([
+                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
+                        'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
+                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
+                    ])
 
                     # New field for updating unit
-                    updated_unit = st.selectbox('Unit', sorted([
-                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
-                        'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
-                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
-                    ]), index=sorted([
-                        'Licensing and Enforcement', 'Evaluations and Registration', 'Pharmacovigilance and Clinical Trials',
-                        'Chemistry Laboratory', 'Microbiology Laboratory', 'Medical Devices Laboratory', 'Quality Unit',
-                        'Legal Unit', 'Human Resources', 'Information and Communication Technology', 'Finance and Administration'
-                    ]).index(selected_risk_row['Unit']))
+                    updated_unit = st.selectbox('Unit', units, index=units.index(selected_risk_row['Unit']))
 
                     # New field for updating Status
                     updated_status = st.selectbox('Status', ['Open', 'Closed'], index=['Open', 'Closed'].index(selected_risk_row['Status']))
