@@ -2270,14 +2270,14 @@ def main():
             # Assuming you have already established a database connection
             engine = connect_to_db()
 
-            # Function to retrieve user information (username and role) from the credentials table
+            # Function to retrieve user information (id, username, role) from the credentials table
             def get_user_info(username):
                 with engine.connect() as conn:
-                    result = conn.execute(text("SELECT user, role FROM credentials WHERE user = :username"), {'username': username}).fetchone()
+                    result = conn.execute(text("SELECT id, user, role FROM credentials WHERE user = :username"), {'username': username}).fetchone()
                     if result:
-                        # Accessing by positional indices
-                        return result[0], result[1]
-                    return None, None
+                        # Return id, user, and role
+                        return result[0], result[1], result[2]
+                    return None, None, None
 
             # Function to retrieve all usernames from the credentials table
             def get_all_usernames():
@@ -2291,18 +2291,29 @@ def main():
                     result = conn.execute(text("SELECT DISTINCT role FROM credentials")).fetchall()
                     return [row[0] for row in result]
 
-            # Assuming the logged-in user is in session state
+            # Function to retrieve the current user's ID from the credentials table
+            def get_current_user_id(username):
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT id FROM credentials WHERE user = :username"), {'username': username}).fetchone()
+                    if result:
+                        return result[0]
+                    return None
+
+            # Assuming the logged-in user is stored in session state
             logged_in_user = st.session_state.user
 
-            # Retrieve the current user's name and role from the credentials table
-            current_user, current_role = get_user_info(logged_in_user)
+            # Retrieve the current user's ID
+            current_user_id = get_current_user_id(logged_in_user)
 
             # Fetch the list of all usernames and roles from the database
             all_usernames = get_all_usernames()
             all_roles = get_all_roles()
 
-            # Tab logic
+            # Tab logic for Delete and Update
             tab = st.selectbox("Select Option", ["Delete User", "Update User"])
+
+            # Retrieve the current user's name and role from the credentials table
+            _, current_user, current_role = get_user_info(logged_in_user)
 
             # Check if the current user is superadmin
             if current_role == "superadmin":
@@ -2311,23 +2322,27 @@ def main():
                 if tab == "Delete User":
                     st.subheader("Delete User")
                     delete_user = st.selectbox("Select username to delete", all_usernames)  # Dynamically populate the usernames
+
                     if st.button("Delete"):
                         try:
                             with engine.connect() as conn:
-                                conn.execute(text(f"DELETE FROM credentials WHERE user = :user"), {'user': delete_user})
+                                with conn.begin():
+                                    # Set the current_user_id variable for the trigger
+                                    conn.execute(text("SET @current_user_id = :current_user_id"), {'current_user_id': current_user_id})
+                                    conn.execute(text("DELETE FROM credentials WHERE user = :user"), {'user': delete_user})
                                 st.success(f"User {delete_user} deleted successfully.")
                         except Exception as e:
                             st.error(f"Error deleting user: {e}")
 
                 # UPDATE USER LOGIC
-                elif tab == "Update User":
+                if tab == "Update User":
                     st.subheader("Update User")
 
                     # Select user to update
                     update_user = st.selectbox("Select username to update", all_usernames)  # Dynamically populate the usernames
 
-                    # Fetch the current role of the selected user
-                    selected_user, selected_role = get_user_info(update_user)
+                    # Fetch the current role and id of the selected user
+                    user_id, selected_user, selected_role = get_user_info(update_user)  # Now it's user_id, not credential_id
 
                     # Display the user's current role in the dropdown and allow it to be changed
                     new_role = st.selectbox("Select new role", all_roles, index=all_roles.index(selected_role))  # Set default to current role
@@ -2335,11 +2350,22 @@ def main():
                     # Select new expiry date
                     new_expiry_date = st.date_input("Select new expiry date")
 
+                    # Correct update logic
                     if st.button("Update"):
                         try:
                             with engine.connect() as conn:
-                                conn.execute(text(f"UPDATE credentials SET role = :role, expiry_date = :expiry WHERE user = :user"), 
-                                             {'role': new_role, 'expiry': new_expiry_date, 'user': update_user})
+                                # Use begin() as a context manager for automatic rollback on failure
+                                with conn.begin():
+                                    # Set the current_user_id variable for the trigger
+                                    conn.execute(text("SET @current_user_id = :current_user_id"), {'current_user_id': current_user_id})
+
+                                    # Update the user data using `id`, not `credential_id`
+                                    conn.execute(text("""
+                                        UPDATE credentials 
+                                        SET role = :role, expiry_date = :expiry_date
+                                        WHERE id = :user_id  -- Using id, as it is the primary key
+                                    """), {'role': new_role, 'expiry_date': new_expiry_date, 'user_id': user_id})
+
                                 st.success(f"User {update_user} updated successfully.")
                         except Exception as e:
                             st.error(f"Error updating user: {e}")
