@@ -1023,8 +1023,8 @@ def main():
                 'Supply Chain Risk', 'Ethical Risk', 'Technological Risk', 'Public Health Risk'
             ]))
             
-            st.session_state['updated_by'] = st.text_input('Updated By')
-            st.session_state['date_last_updated'] = st.date_input('Date Last Updated')
+            st.session_state['updated_by'] = st.text_input('Entered By')
+            st.session_state['date_last_updated'] = st.date_input('Date Entered')
             risk_description = st.text_input('Risk Description', key='risk_description')
             cause_consequences = st.text_input('Cause & Consequences', key='cause_consequences')
             risk_owners = st.text_input('Risk Owner(s)', key='risk_owners')
